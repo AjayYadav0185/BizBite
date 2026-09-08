@@ -25,14 +25,28 @@ final class OrderApiController extends Controller
     /**
      * Save an order placed from the Flutter app.
      *
-     * Body:
-     *   {
-     *     "items": [{ "food_item_id": 1, "quantity": 2 }],
-     *     "payment_mode": "cash" | "upi" | "card"
+     * Body (both shapes accepted — the controller normalizes them):
+     *   { "payment_mode": "cash",
+     *     "items": [{ "id": 12, "quantity": 2 }]            // mobile alias
+     *     "items": [{ "food_item_id": 12, "quantity": 2 }]  // canonical
      *   }
      */
     public function store(Request $request): JsonResponse
     {
+        // Normalize the mobile payload: accept `id` as a lean alias for the
+        // canonical `food_item_id` so the Flutter client can send the
+        // documented compact shape {"id": 12, "quantity": 2}.
+        $items = collect((array) $request->input('items', []))
+            ->filter(fn ($line) => is_array($line))
+            ->map(fn (array $line): array => [
+                'food_item_id' => $line['food_item_id'] ?? $line['id'] ?? null,
+                'quantity' => $line['quantity'] ?? 1,
+            ])
+            ->values()
+            ->all();
+
+        $request->merge(['items' => $items]);
+
         $payload = $request->validate([
             'items' => ['required', 'array', 'min:1'],
             'items.*.food_item_id' => ['required', 'integer'],
