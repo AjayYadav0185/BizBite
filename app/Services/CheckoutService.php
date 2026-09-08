@@ -38,7 +38,7 @@ class CheckoutService
      */
     public static function place(array $payload, User $user)
     {
-        return DB::transaction(function () {
+        return DB::transaction(function () use ($payload, $user) {
             $paymentMode = PaymentMode::from(
                 (string) ($payload['payment_mode'] ?? 'cash')
             );
@@ -54,8 +54,9 @@ class CheckoutService
             // by StoreScope, a client can never inject item ids from another
             // store into the order.
             $foodItemIds = $items->pluck('food_item_id');
-            $foodItems = FoodItem::whereKey($foodItemIds)->
-                get()->keyBy('id');
+            $foodItems = FoodItem::whereKey($foodItemIds)
+                ->get()
+                ->keyBy('id');
 
             if (count($foodItems) !== count($foodItemIds->unique())) {
                 throw new InvalidArgumentException(
@@ -103,20 +104,27 @@ class CheckoutService
     /**
      * Generate a human friendly, per store order number.
      *
+     * The count query uses `newQueryWithoutScopes()` with an explicit
+     * `store_id` where-clause to avoid recursive scope application while
+     * still scoping to the current store.
+     *
      * @param  int|string  $storeId
      * @return string
      */
     protected static function generateOrderNumber($storeId)
     {
-        $today = date('Ymd');
-        $start = date('Y-m-d 00:00:00');
-        $end = date('Y-m-d 23:59:59');
-        $count = Order::whereBetween('created_at', [$start, $end])->count();
+        $start = now()->startOfDay();
+        $end = now()->endOfDay();
+
+        $count = Order::newQueryWithoutScopes()
+            ->where('store_id', $storeId)
+            ->whereBetween('created_at', [$start, $end])
+            ->count();
 
         return sprintf(
             '%s-%s-%s',
             Str::padLeft((string) $storeId, 3, '0'),
-            $today,
+            $start->format('Ymd'),
             Str::padLeft((string) ($count + 1), 4, '0')
         );
     }

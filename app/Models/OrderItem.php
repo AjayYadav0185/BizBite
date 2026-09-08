@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Scopes\OrderStoreScope;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -14,6 +15,7 @@ use Illuminate\Database\Eloquent\Model;
 #[ScopedBy(OrderStoreScope::class)]
 class OrderItem extends Model
 {
+    use HasFactory;
     /**
      * The attributes that are mass assignable.
      *

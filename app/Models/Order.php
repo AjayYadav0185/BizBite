@@ -6,11 +6,13 @@ use App\Models\Enums\OrderStatus;
 use App\Models\Enums\PaymentMode;
 use App\Models\Scopes\StoreScope;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 #[ScopedBy(StoreScope::class)]
 class Order extends Model
 {
+    use HasFactory;
     /**
      * The attributes that are mass assignable.
      *

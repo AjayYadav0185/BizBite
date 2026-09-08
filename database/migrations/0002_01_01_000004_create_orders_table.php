@@ -23,8 +23,7 @@ return new class extends Migration
             $table->decimal('total_amount', 8, 2)->default(0);
             $table->enum('payment_mode', ['cash', 'upi', 'card'])->default('cash');
             $table->enum('status', ['completed', 'cancelled'])->default('completed')->index();
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at')->nullable();
+            $table->timestamps();
 
             $table->index(['store_id', 'created_at']);
             $table->unique(['store_id', 'order_number']);
