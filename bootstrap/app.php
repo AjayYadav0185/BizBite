@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\SetCurrentStore;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -16,6 +17,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->use([
             SetCurrentStore::class,
         ]);
+
+        // Role-based route protection: 'role:admin', 'role:admin,cashier'.
+        $middleware->alias([
+            'role' => EnsureRole::class,
+        ]);
+
+        $middleware->redirectGuestsTo('/login');
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

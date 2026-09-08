@@ -49,4 +49,16 @@ class AuthController extends Controller
             ],
         ]);
     }
+
+    /**
+     * Revoke the Sanctum token used for the current request (Flutter logout).
+     */
+    public function logout(Request $request)
+    {
+        $request->user()->currentAccessToken()->delete();
+
+        return Response::json([
+            'message' => 'Logged out successfully.',
+        ]);
+    }
 }

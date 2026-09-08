@@ -2,7 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\MenuController;
-use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\OrderApiController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -15,22 +15,36 @@ use Illuminate\Support\Facades\Route;
 Route::post('/login', [AuthController::class, 'login']);
 
 // ---------------------------------------------------------------------------
-// Sanctum protected API routes (used by the Flutter app in Phase 2)
+// Sanctum protected API routes (consumed by the Flutter app in Phase 2)
 //
 // Authenticate with:
 //   Authorization: Bearer {id}|{plainTextToken}
 // returned by POST /api/login.
+//
+// TENANCY: the global SetCurrentStore middleware (registered application-
+// wide) populates the request Context with the authenticated user's store_id,
+// so every scoped model query below is automatically constrained to the
+// caller's store — no store_id is ever accepted from the client.
+//
+// AUTHORIZATION: the 'role' alias (App\Http\Middleware\EnsureRole) reuses the
+// exact same role vocabulary as the web portals: 'admin' = owner, 'cashier'.
 // ---------------------------------------------------------------------------
-Route::middleware('auth:sanctum')->group(function () {
-    // GET /api/menu — categories + food items for the current store.
-    Route::get('/menu', [MenuController::class, 'index']);
 
-    // POST /api/orders — accepts the Flutter cart payload and saves the order
-    // through the same CheckoutService used by the web POS.
-    Route::post('/orders', [OrderController::class, 'store']);
+Route::middleware(['auth:sanctum'])->group(function () {
+    // GET /api/user — authenticated profile (role, store_id, etc.).
+    Route::get('/user', fn (Request $request) => $request->user());
 
-    // GET /api/user — convenience endpoint returning the authenticated profile.
-    Route::get('/user', function (Request $request) {
-        return $request->user();
-    });
+    // GET /api/menu — active categories + available food items for the
+    // caller's store. Feeds the Flutter ordering screen.
+    Route::get('/menu', [MenuController::class, 'index'])
+        ->middleware('role:admin,cashier');
+
+    // POST /api/orders — accepts the Flutter cart payload and settles the
+    // bill through the EXACT SAME OrderService used by the Livewire POS
+    // (transaction + server-side price snapshotting + per-day bill number).
+    Route::post('/orders', [OrderApiController::class, 'store'])
+        ->middleware('role:admin,cashier');
+
+    // POST /api/logout — revokes the token used for the current request.
+    Route::post('/logout', [AuthController::class, 'logout']);
 });
