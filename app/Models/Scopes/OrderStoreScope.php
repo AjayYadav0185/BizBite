@@ -33,7 +33,7 @@ class OrderStoreScope implements Scope
             // Order's own StoreScope (the store_id is already explicit here).
             $builder->whereIn(
                 'order_id',
-                Order::newQueryWithoutScopes()->select('id')->where(
+                Order::query()->withoutGlobalScopes()->select('id')->where(
                     'store_id', $storeId
                 )
             );

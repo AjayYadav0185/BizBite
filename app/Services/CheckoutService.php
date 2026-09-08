@@ -104,7 +104,7 @@ class CheckoutService
     /**
      * Generate a human friendly, per store order number.
      *
-     * The count query uses `newQueryWithoutScopes()` with an explicit
+     * The count query uses `withoutGlobalScopes()` with an explicit
      * `store_id` where-clause to avoid recursive scope application while
      * still scoping to the current store.
      *
@@ -116,7 +116,7 @@ class CheckoutService
         $start = now()->startOfDay();
         $end = now()->endOfDay();
 
-        $count = Order::newQueryWithoutScopes()
+        $count = Order::query()->withoutGlobalScopes()
             ->where('store_id', $storeId)
             ->whereBetween('created_at', [$start, $end])
             ->count();
