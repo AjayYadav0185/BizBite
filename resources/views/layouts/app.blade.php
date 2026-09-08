@@ -10,7 +10,13 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800,900&display=swap" rel="stylesheet" />
 
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
+        @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @else
+        {{-- Dev fallback: Vite assets not built (`npm install && npm run build`).
+             Keeps the portals fully usable without a Node toolchain. --}}
+        <script src="https://cdn.tailwindcss.com"></script>
+    @endif
     @livewireStyles
 </head>
 <body class="font-sans antialiased bg-slate-950">

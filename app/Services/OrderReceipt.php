@@ -26,9 +26,9 @@ final class OrderReceipt
      * @param  Order  $order  The persisted order model (with order_number,
      *                        total_amount, payment_mode, status resolved).
      * @param  array<int, array{food_item_name: string, quantity: int, price: string, subtotal: string}>  $items
-     *                        Price-snapshot rows as they were written to
-     *                        `order_items` (server-computed, never client
-     *                        supplied).
+     *                                                                                                            Price-snapshot rows as they were written to
+     *                                                                                                            `order_items` (server-computed, never client
+     *                                                                                                            supplied).
      * @param  string  $totalAmount  Grand total, 2 decimal places.
      * @param  string  $storeName  Tenant display name for the receipt header.
      * @param  string|null  $storePhone  Tenant contact phone.

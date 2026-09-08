@@ -23,8 +23,6 @@ class SetCurrentStore
     /**
      * Handle the request.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure  $next
      * @return mixed
      */
     public function handle(Request $request, Closure $next)

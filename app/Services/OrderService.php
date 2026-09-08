@@ -37,15 +37,15 @@ final class OrderService
     /**
      * Place (settle) an order.
      *
-     * @param  \App\Models\User  $user  The authenticated cashier or admin.
+     * @param  User  $user  The authenticated cashier or admin.
      * @param  array<string, mixed>  $payload  Normalized cart payload:
-     *   [
-     *     'items'        => [['food_item_id' => 1, 'quantity' => 2], ...],
-     *     'payment_mode' => 'cash'|'upi'|'card',
-     *   ]
-     * @return \App\Services\OrderReceipt  Immutable receipt for printing/JSON.
+     *                                         [
+     *                                         'items'        => [['food_item_id' => 1, 'quantity' => 2], ...],
+     *                                         'payment_mode' => 'cash'|'upi'|'card',
+     *                                         ]
+     * @return OrderReceipt Immutable receipt for printing/JSON.
      *
-     * @throws \App\Services\Exceptions\OrderPlacementException
+     * @throws OrderPlacementException
      */
     public function place(User $user, array $payload): OrderReceipt
     {
@@ -94,7 +94,7 @@ final class OrderService
                 $snapshotRows = [];
 
                 foreach ($lineItems as $line) {
-                    /** @var \App\Models\FoodItem $foodItem */
+                    /** @var FoodItem $foodItem */
                     $foodItem = $foodItems[$line['food_item_id']];
 
                     $quantity = $line['quantity'];
@@ -157,8 +157,7 @@ final class OrderService
      * grid both guarantee uniqueness, but the API is a public boundary) and
      * coerces quantities into positive integers.
      *
-     * @param  mixed  $items
-     * @return \Illuminate\Support\Collection<int, array{food_item_id: int, quantity: int}>
+     * @return Collection<int, array{food_item_id: int, quantity: int}>
      */
     private function normalizeLineItems(mixed $items): Collection
     {

@@ -4,8 +4,6 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
-use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Role middleware alias ('role:admin', 'role:cashier').
@@ -22,10 +20,7 @@ class EnsureRole
     /**
      * Handle an incoming request.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure  $next
      * @param  string  ...$roles  Any of 'admin' or 'cashier'.
-     * @return mixed
      */
     public function handle(Request $request, Closure $next, string ...$roles): mixed
     {

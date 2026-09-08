@@ -2,11 +2,12 @@
 
 namespace App\Services\Exceptions;
 
+use App\Services\OrderService;
 use RuntimeException;
 use Throwable;
 
 /**
- * Thrown by {@see \App\Services\OrderService} whenever a checkout cannot be
+ * Thrown by {@see OrderService} whenever a checkout cannot be
  * safely committed (empty cart, cross-tenant item ids, unavailable menu item,
  * stale price data, etc.).
  *
@@ -18,9 +19,9 @@ class OrderPlacementException extends RuntimeException
     /**
      * Create a new order placement exception.
      *
-     * @param  string  $message   Human readable, cashier-safe explanation.
-     * @param  int  $code         Optional machine readable error code.
-     * @param  \Throwable|null  $previous  Wrapped underlying failure.
+     * @param  string  $message  Human readable, cashier-safe explanation.
+     * @param  int  $code  Optional machine readable error code.
+     * @param  Throwable|null  $previous  Wrapped underlying failure.
      */
     public function __construct(string $message, int $code = 0, ?Throwable $previous = null)
     {

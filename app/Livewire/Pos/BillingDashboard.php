@@ -105,7 +105,7 @@ final class BillingDashboard extends Component
 
     public function addItem(int $foodItemId): void
     {
-        /** @var \App\Models\FoodItem|null $item */
+        /** @var FoodItem|null $item */
         $item = FoodItem::query()->where('is_available', true)->find($foodItemId);
 
         if ($item === null) {
@@ -219,7 +219,7 @@ final class BillingDashboard extends Component
             return;
         }
 
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = Auth::user();
 
         try {

@@ -17,7 +17,6 @@ class MenuController extends Controller
      * This exact endpoint is consumed by the web POS (Phase 1) and the Flutter
      * app (Phase 2).
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return array<string, mixed>
      */
     public function index(Request $request)

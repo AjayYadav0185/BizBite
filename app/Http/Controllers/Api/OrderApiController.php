@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\Exceptions\OrderPlacementException;
+use App\Services\OrderReceipt;
 use App\Services\OrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,7 +14,7 @@ use Illuminate\Http\Request;
  *
  * This controller holds NO business logic: it validates the HTTP payload,
  * injects the SAME {@see OrderService} the Staff POS Livewire component uses,
- * and serializes the resulting {@see \App\Services\OrderReceipt} to JSON.
+ * and serializes the resulting {@see OrderReceipt} to JSON.
  * Bill numbering, price snapshotting and transactional integrity are
  * therefore byte-for-byte identical between the web POS and the mobile app.
  */
