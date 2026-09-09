@@ -1,3 +1,20 @@
+# ============ Stage 1: build the Vite frontend assets with Node ==============
+FROM node:22-alpine AS frontend
+
+WORKDIR /app
+
+# Node dependencies (only re-run when package.json changes)
+COPY package.json ./
+RUN npm install --no-audit --no-fund
+
+# Source files required by Vite/Tailwind (public/build is excluded from the
+# build context via .dockerignore, so this always produces a fresh build)
+COPY resources/ ./resources/
+COPY vite.config.js tailwind.config.js postcss.config.js ./
+
+RUN npm run build
+
+# ============ Stage 2: PHP application image =================================
 FROM php:8.3-cli
 
 # 1. System dependencies + PHP extensions (including pdo_pgsql so the app
