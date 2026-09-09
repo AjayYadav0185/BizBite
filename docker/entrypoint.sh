@@ -51,14 +51,10 @@ php artisan config:clear  >/dev/null 2>&1 || true
 php artisan cache:clear   >/dev/null 2>&1 || true
 php artisan view:clear    >/dev/null 2>&1 || true
 
-# Migrations are idempotent, so they are safe on every boot.
-php artisan migrate --force
-
-# Seed ONLY a fresh database (users table empty). Never wipe data on restart.
-if php artisan tinker --execute='exit(\App\Models\User::count() === 0 ? 0 : 1);' >/dev/null 2>&1; then
-    echo "Fresh database detected - running seeders..."
-    php artisan db:seed --force
-fi
+# Completely drop all tables, views, and types, then migrate fresh with seeders
+echo "Wiping database, running fresh migrations, and seeding..."
+php artisan db:wipe --force
+php artisan migrate --seed --force
 
 # ---- Optimise ----------------------------------------------------------------
 php artisan config:cache
