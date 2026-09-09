@@ -56,6 +56,15 @@ dependencies:
   # --- Formatting -----------------------------------------------------------
   intl: ^0.20.0               # ₹ currency + receipt timestamp formatting
 
+# Vendored copy of blue_thermal_printer 1.2.3 with Android fixes for modern
+# AGP: explicit `namespace`, compileSdk 34, and no legacy manifest `package`
+# attribute. The upstream package is unmaintained and fails to build with
+# AGP 9 (Gradle 9.1.0) used by this project.
+dependency_overrides:
+  blue_thermal_printer:
+    path: third_party/blue_thermal_printer
+
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

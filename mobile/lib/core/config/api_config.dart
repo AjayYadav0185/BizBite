@@ -17,8 +17,8 @@ class ApiConfig {
   ApiConfig._();
 
   /// Backend root for ALL API calls. No trailing slash.
-  static const String baseUrl = 'http://10.20.3.55:8080/api';
-  // static const String baseUrl = 'https://bizbite.onrender.com/api';
+  // static const String baseUrl = 'http://10.20.3.55:8080/api';
+  static const String baseUrl = 'https://bizbite.onrender.com/api';
   
 
   /// Standard headers every BizBite request carries.
