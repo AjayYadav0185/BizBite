@@ -71,18 +71,14 @@ RUN composer install \
         --no-progress \
         --no-scripts
 
-# 5. Node dependencies (only re-run when package.json changes)
-COPY package.json ./
-RUN npm install --no-audit --no-fund
+# 5. Frontend assets built in the Node stage (no npm/node in the PHP image)
+COPY --from=frontend /app/public/build ./public/build
 
 # 6. Application source (vendor/node_modules/etc. excluded via .dockerignore)
 COPY . .
 
-# 7. Build the Vite frontend assets (@vite needs public/build in production)
-#    and regenerate the Laravel package manifest
-RUN npm run build \
-    && php artisan package:discover --ansi \
-    && rm -rf node_modules
+# 7. Regenerate the Laravel package manifest
+RUN php artisan package:discover --ansi
 
 # 8. Entrypoint
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
