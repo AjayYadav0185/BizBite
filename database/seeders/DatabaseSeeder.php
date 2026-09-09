@@ -12,49 +12,137 @@ use Illuminate\Database\Seeder;
 class DatabaseSeeder extends Seeder
 {
     /**
-     * Seed the application's database with a demo store, two users
-     * (admin + cashier), three categories and 5 food items each.
+     * Seed a North Indian food outlet (Apna Zaika) with Indian staff,
+     * North Indian categories and INR-priced menu items.
      *
      * We create the store first and pass its ID explicitly to every
-     * child factory call. This prevents the factory definitions' default
-     * `Store::factory()` calls from spawning duplicate stores in the
-     * nested `has()` / `create()` chain.
+     * child create call. This prevents the factory definitions' default
+     * `Store::factory()` calls from spawning duplicate stores.
      */
     public function run(): void
     {
         $store = Store::factory()->create([
-            'name' => 'Demo Store',
-            'phone' => '555-0100',
-            'address' => '123 Main Street, Demo City',
-            'print_header' => 'BIZBITE POS',
-            'print_footer' => 'Thank you for your order!',
+            'name' => 'Apna Zaika - North Indian Food Outlet',
+            'phone' => '+91 98110 45678',
+            'address' => 'Shop No. 12, Main Market, Model Town, New Delhi 110009',
+            'print_header' => 'APNA ZAIKA - SWAD DESI TADKE KA',
+            'print_footer' => 'Shukriya! Phir Padhariye! Visit Again!',
         ]);
 
         User::factory()->create([
             'store_id' => $store->id,
-            'name' => 'Admin User',
-            'email' => 'admin@bizbite.test',
+            'name' => 'Rajesh Sharma',
+            'email' => 'admin@mail.com',
             'password' => 'password',
             'role' => UserRole::Admin,
         ]);
 
         User::factory()->create([
             'store_id' => $store->id,
-            'name' => 'Cashier User',
-            'email' => 'cashier@bizbite.test',
+            'name' => 'Priya Verma',
+            'email' => 'cashier@mail.com',
             'password' => 'password',
             'role' => UserRole::Cashier,
         ]);
 
-        Category::factory(3)
-            ->create([
+        /**
+         * Category => [[item name, price in INR], ...]
+         * Prices are typical North Indian dhaba / QSR rates.
+         */
+        $menu = [
+            'Tandoor & Tikkas' => [
+                ['Paneer Tikka Angara', 220],
+                ['Amritsari Paneer Tikka', 210],
+                ['Soya Chaap Tandoori', 180],
+                ['Soya Chaap Malai', 200],
+                ['Hara Bhara Kebab (6 Pc)', 140],
+                ['Dahi Ke Kebab (6 Pc)', 170],
+                ['Tandoori Mushroom', 200],
+                ['Tandoori Chicken Half (4 Pc)', 250],
+                ['Chicken Malai Tikka', 270],
+            ],
+            'Veg Main Course' => [
+                ['Paneer Butter Masala', 230],
+                ['Shahi Paneer', 220],
+                ['Kadhai Paneer', 230],
+                ['Palak Paneer', 200],
+                ['Mix Veg Dhaba Style', 170],
+                ['Aloo Gobhi Masala', 150],
+                ['Chole Amritsari', 160],
+                ['Rajma Dhaba Style', 160],
+            ],
+            'Non-Veg Main Course' => [
+                ['Butter Chicken', 280],
+                ['Kadhai Chicken', 270],
+                ['Dhaba Chicken Curry', 250],
+                ['Egg Curry (4 Pc)', 180],
+                ['Mutton Rogan Josh', 340],
+                ['Keema Matar', 300],
+            ],
+            'Dal, Breads & Thali' => [
+                ['Dal Makhani', 190],
+                ['Dal Tadka Fry', 160],
+                ['Tandoori Roti', 15],
+                ['Butter Tandoori Roti', 20],
+                ['Plain Naan', 30],
+                ['Butter Naan', 40],
+                ['Garlic Naan', 50],
+                ['Laccha Paratha', 45],
+                ['Chole Bhature (2 Pc)', 120],
+                ['Rajma Chawal Combo', 140],
+                ['Veg Thali (Dal, Sabzi, 3 Roti, Rice, Salad)', 180],
+                ['Special Maharaja Thali', 250],
+            ],
+            'Biryani, Pulao & Rice' => [
+                ['Veg Dum Biryani with Raita', 160],
+                ['Chicken Dum Biryani', 220],
+                ['Mutton Biryani', 320],
+                ['Egg Biryani', 180],
+                ['Veg Pulao with Raita', 140],
+                ['Jeera Rice', 120],
+                ['Steamed Rice', 100],
+                ['Chicken Fried Rice Desi Style', 190],
+            ],
+            'Chaat & Street Snacks' => [
+                ['Aloo Tikki Chole', 80],
+                ['Pani Puri / Golgappe (8 Pc)', 60],
+                ['Papdi Chaat', 70],
+                ['Dahi Bhalla Chaat', 90],
+                ['Punjabi Samosa (2 Pc)', 40],
+                ['Bread Pakora (2 Pc)', 50],
+                ['Paneer Pakora', 120],
+                ['Masala French Fries', 99],
+            ],
+            'Desserts & Beverages' => [
+                ['Gulab Jamun (4 Pc)', 60],
+                ['Gajar Ka Halwa', 100],
+                ['Rasmalai (2 Pc)', 80],
+                ['Kulfi Falooda', 120],
+                ['Punjabi Sweet Lassi', 80],
+                ['Mango Lassi', 100],
+                ['Masala Chaas', 50],
+                ['Kulhad Masala Chai', 30],
+                ['Cold Coffee', 110],
+            ],
+        ];
+
+        foreach ($menu as $categoryName => $items) {
+            $category = Category::create([
                 'store_id' => $store->id,
-            ])
-            ->each(function (Category $category) use ($store) {
-                FoodItem::factory(5)->create([
+                'name' => $categoryName,
+                'is_active' => true,
+            ]);
+
+            foreach ($items as [$itemName, $price]) {
+                FoodItem::create([
                     'store_id' => $store->id,
                     'category_id' => $category->id,
+                    'name' => $itemName,
+                    'price' => $price,
+                    'is_available' => true,
                 ]);
-            });
+            }
+        }
     }
 }
+
