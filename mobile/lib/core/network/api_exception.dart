@@ -5,7 +5,6 @@ import 'package:dio/dio.dart';
 /// The [ErrorInterceptor] translates raw DioException objects into this type
 /// so that Cubits never touch HTTP internals — they catch [ApiException] and
 /// render [message] directly to the cashier.
-library;
 
 /// Unwrap a thrown error into its typed [ApiException].
 ///
@@ -13,8 +12,8 @@ library;
 /// controller/BLoC sees exactly one failure type, with a cashier-ready message.
 ApiException apiExceptionFrom(Object? error) {
   if (error is ApiException) return error;
-  if (error is DioException dioError) {
-    final inner = dioError.error;
+  if (error is DioException) {
+    final inner = error.error;
     if (inner is ApiException) return inner;
     return ApiException.unknown(
       message: inner is String ? inner.toString() : null,

@@ -1,12 +1,11 @@
 import 'package:dio/dio.dart';
 
+import '../../../../core/config/api_config.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/network/dio_client.dart';
-import '../../../../core/utils/device_info.dart';
 import '../../../../core/utils/parse_utils.dart';
-import '../config/api_config.dart';
-import 'auth_response_model.dart';
-import 'user_model.dart';
+import '../models/auth_response_model.dart';
+import '../models/user_model.dart';
 
 /// Thin typed wrapper over the Sanctum auth endpoints.
 ///
@@ -14,7 +13,7 @@ import 'user_model.dart';
 /// [ApiException] (never raw Dio errors) — the ErrorInterceptor already
 /// translated wire failures before control returns to this class.
 class AuthRepository {
-  AuthRepository({required DioClient client}) : _client = client;
+  AuthRepository({required this._client});
 
   final DioClient _client;
 
@@ -36,9 +35,9 @@ class AuthRepository {
         data: {
           'email': email.trim(),
           'password': password,
-          if (deviceId != null) 'device_id': deviceId,
-          if (platform != null) 'platform': platform,
-          if (appVersion != null) 'app_version': appVersion,
+          'device_id': ?deviceId,
+          'platform': ?platform,
+          'app_version': ?appVersion,
         },
       );
 

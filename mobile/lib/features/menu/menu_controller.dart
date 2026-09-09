@@ -9,8 +9,8 @@ import 'data/repositories/menu_repository.dart';
 /// The menu is tenant-scoped and availability-filtered server-side; this
 /// controller simply guards against duplicate fetches and surfaces failures
 /// as a cashier-readable message.
-class MenuController with ChangeNotifier {
-  MenuController({required MenuRepository repository}) : _repository = repository;
+class MenuController with ChangeNotifier implements Listenable {
+  MenuController({required this._repository});
 
   final MenuRepository _repository;
 

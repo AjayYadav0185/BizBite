@@ -5,8 +5,6 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 /// Identifiers sent with `POST /api/login` so the Laravel side can bind the
 /// Flutter device to the store (`StoreDevice::updateOrCreate`), track app
 /// versions and scope push notifications.
-library;
-
 class DeviceInfo {
   static String? _deviceId;
 
@@ -15,7 +13,7 @@ class DeviceInfo {
   /// fresh id simply re-registers this device — never a hard failure.
   static String get deviceId {
     _deviceId ??= _generateHexId();
-    return _deviceId;
+    return _deviceId!;
   }
 
   /// Lower-case target platform name ("android" / "ios" / "macos" / ...).

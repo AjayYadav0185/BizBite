@@ -7,7 +7,6 @@ import '../../core/network/dio_client.dart';
 import '../../core/storage/token_store.dart';
 import '../../core/utils/device_info.dart';
 import '../../core/utils/parse_utils.dart';
-import 'data/models/auth_response_model.dart';
 import 'data/models/store_profile_model.dart';
 import 'data/models/user_model.dart';
 import 'data/repositories/auth_repository.dart';
@@ -24,14 +23,12 @@ import 'data/repositories/auth_repository.dart';
 /// The UI (BizBiteApp) wraps itself in a `ListenableBuilder` keyed on this
 /// controller: every notification rebuilds the visible screen, so the whole
 /// app reacts to login/logout with zero manual navigation.
-class SessionController with ChangeNotifier {
+class SessionController with ChangeNotifier implements Listenable {
   SessionController({
-    required TokenStore tokenStore,
+    required this._tokenStore,
     required AuthRepository authRepository,
-    DioClient? client,
-  })  : _tokenStore = tokenStore,
-        _auth = authRepository,
-        _client = client;
+    this._client,
+  }) : _auth = authRepository;
 
   final TokenStore _tokenStore;
   final AuthRepository _auth;

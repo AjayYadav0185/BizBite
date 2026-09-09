@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../menu/data/models/food_item_model.dart';
 import 'data/models/cart_line.dart';
 import 'data/models/order_models.dart';
@@ -11,7 +13,7 @@ import 'data/models/order_models.dart';
 /// This is a pure value holder + mutator: every mutation calls
 /// `notifyListeners()` so `ListenableBuilder`s that render the cart pane
 /// rebuild automatically.
-class CartController with ChangeNotifier {
+class CartController with ChangeNotifier implements Listenable {
   final Map<int, CartLine> _lines = {};
 
   PaymentMode paymentMode = PaymentMode.cash;
@@ -96,7 +98,7 @@ class CartController with ChangeNotifier {
   void setDiscountAmount(double amount) {
     final clamped = amount.clamp(0, subtotal);
     if (discountAmount == clamped) return;
-    discountAmount = clamped;
+    discountAmount = clamped.toDouble();
     notifyListeners();
   }
 

@@ -38,6 +38,9 @@ class OrderReceiptModel extends Equatable {
     required this.placedAt,
     required this.totalQuantity,
     required this.items,
+    this.orderType = OrderType.takeaway,
+    this.customerName = '',
+    this.upiRef = '',
   });
 
   final int orderId;
@@ -54,6 +57,10 @@ class OrderReceiptModel extends Equatable {
   final int totalQuantity;
   final List<OrderItemModel> items;
 
+  final OrderType orderType;
+  final String customerName;
+  final String upiRef;
+
   factory OrderReceiptModel.fromJson(Map<String, dynamic> json) {
     return OrderReceiptModel(
       orderId: toInt(json['order_id']),
@@ -68,6 +75,9 @@ class OrderReceiptModel extends Equatable {
       items: toListOfMaps(json['items'])
           .map(OrderItemModel.fromJson)
           .toList(growable: false),
+      orderType: orderTypeFromJson(json['order_type']?.toString()),
+      customerName: toNullableString(json['customer_name']),
+      upiRef: toNullableString(json['upi_ref']),
     );
   }
 
@@ -82,6 +92,9 @@ class OrderReceiptModel extends Equatable {
         'placed_at': placedAt,
         'total_quantity': totalQuantity,
         'items': items.map((item) => item.toJson()).toList(),
+        'order_type': orderType.wireValue,
+        'customer_name': customerName,
+        'upi_ref': upiRef,
       };
 
   @override
@@ -96,5 +109,8 @@ class OrderReceiptModel extends Equatable {
         placedAt,
         totalQuantity,
         items,
+        orderType,
+        customerName,
+        upiRef,
       ];
 }

@@ -7,7 +7,7 @@ import 'data/models/order_receipt_model.dart';
 /// The POS screen sets [pendingReceipt] after a successful `POST /api/orders`;
 /// the root navigator swaps to the receipt screen while it is non-null, and
 /// "New bill" clears it to return to the billing grid.
-class OrderFlowController with ChangeNotifier {
+class OrderFlowController with ChangeNotifier implements Listenable {
   OrderReceiptModel? pendingReceipt;
 
   void showReceipt(OrderReceiptModel receipt) {

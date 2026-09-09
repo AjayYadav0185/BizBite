@@ -1,11 +1,11 @@
 import 'package:dio/dio.dart';
 
+import '../../../../core/config/api_config.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../core/utils/parse_utils.dart';
-import '../config/api_config.dart';
-import '../features/orders/data/models/order_models.dart';
-import '../features/orders/data/models/order_receipt_model.dart';
+import '../models/order_models.dart';
+import '../models/order_receipt_model.dart';
 
 /// Thin typed wrapper over `POST /api/orders`.
 ///
@@ -13,7 +13,7 @@ import '../features/orders/data/models/order_receipt_model.dart';
 /// idempotency) all live server-side in the shared `OrderService`; this class
 /// only serializes the cart and parses the returned receipt.
 class OrderRepository {
-  OrderRepository({required DioClient client}) : _client = client;
+  OrderRepository({required this._client});
 
   final DioClient _client;
 

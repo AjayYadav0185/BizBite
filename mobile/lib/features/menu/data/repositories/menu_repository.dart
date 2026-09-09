@@ -1,10 +1,10 @@
 import 'package:dio/dio.dart';
 
+import '../../../../core/config/api_config.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../core/utils/parse_utils.dart';
-import '../config/api_config.dart';
-import '../features/menu/data/models/menu_response_model.dart';
+import '../models/menu_response_model.dart';
 
 /// Thin typed wrapper over `GET /api/menu`.
 ///
@@ -12,7 +12,7 @@ import '../features/menu/data/models/menu_response_model.dart';
 /// (global StoreScope), filters availability and pre-sorts, so this class only
 /// maps JSON onto the typed [MenuResponseModel].
 class MenuRepository {
-  MenuRepository({required DioClient client}) : _client = client;
+  MenuRepository({required this._client});
 
   final DioClient _client;
 
