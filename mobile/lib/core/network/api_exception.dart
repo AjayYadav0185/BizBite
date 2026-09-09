@@ -1,8 +1,29 @@
+import 'package:dio/dio.dart';
+
 /// Typed, UI-ready failure model for every BizBite API error.
 ///
 /// The [ErrorInterceptor] translates raw DioException objects into this type
 /// so that Cubits never touch HTTP internals — they catch [ApiException] and
 /// render [message] directly to the cashier.
+library;
+
+/// Unwrap a thrown error into its typed [ApiException].
+///
+/// Repositories rethrow this from DioException catches so that every
+/// controller/BLoC sees exactly one failure type, with a cashier-ready message.
+ApiException apiExceptionFrom(Object? error) {
+  if (error is ApiException) return error;
+  if (error is DioException dioError) {
+    final inner = dioError.error;
+    if (inner is ApiException) return inner;
+    return ApiException.unknown(
+      message: inner is String ? inner.toString() : null,
+      cause: error,
+    );
+  }
+  return ApiException.unknown(cause: error);
+}
+
 class ApiException implements Exception {
   ApiException({
     required this.message,

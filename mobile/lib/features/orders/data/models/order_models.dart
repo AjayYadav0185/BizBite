@@ -3,8 +3,8 @@ import 'package:equatable/equatable.dart';
 import '../../../../core/utils/parse_utils.dart';
 
 /// Mirror of `App\Models\Enums\PaymentMode` on the Laravel side.
-/// `POST /api/orders` validates: `in:cash,upi,card`.
-enum PaymentMode { cash, upi, card }
+/// `POST /api/orders` validates: `in:cash,upi,card,credit,split`.
+enum PaymentMode { cash, upi, card, credit, split }
 
 PaymentMode paymentModeFromJson(String? value) =>
     PaymentMode.values.firstWhere(
@@ -18,9 +18,38 @@ extension PaymentModeX on PaymentMode {
 
   /// Label shown on the POS payment toggle.
   String get label => switch (this) {
-        PaymentMode.cash => 'CASH',
+        PaymentMode.cash => 'Cash',
         PaymentMode.upi => 'UPI',
-        PaymentMode.card => 'CARD',
+        PaymentMode.card => 'Card',
+        PaymentMode.credit => 'Credit',
+        PaymentMode.split => 'Split',
+      };
+}
+
+/// Mirror of `App\Models\Enums\OrderType` on the Laravel side.
+/// `POST /api/orders` validates: `in:dine_in,takeaway,parcel,delivery`.
+enum OrderType { dineIn, takeaway, parcel, delivery }
+
+OrderType orderTypeFromJson(String? value) =>
+    OrderType.values.firstWhere(
+      (type) => type.name == value,
+      orElse: () => OrderType.takeaway,
+    );
+
+extension OrderTypeX on OrderType {
+  /// Wire value sent to `POST /api/orders` (snake_case like the backend).
+  String get wireValue => switch (this) {
+        OrderType.dineIn => 'dine_in',
+        OrderType.takeaway => 'takeaway',
+        OrderType.parcel => 'parcel',
+        OrderType.delivery => 'delivery',
+      };
+
+  String get label => switch (this) {
+        OrderType.dineIn => 'Dine-in',
+        OrderType.takeaway => 'Takeaway',
+        OrderType.parcel => 'Parcel',
+        OrderType.delivery => 'Delivery',
       };
 }
 
@@ -77,21 +106,60 @@ class OrderLineRequest extends Equatable {
 }
 
 /// Full request body for `POST /api/orders`:
-/// `{"payment_mode": "cash", "items": [{"id": 12, "quantity": 2}]}`
+///
+/// ```json
+/// {
+///   "payment_mode": "upi",
+///   "order_type": "takeaway",
+///   "discount_amount": "20.00",
+///   "customer_name": "Amit",
+///   "customer_phone": "98110XXXXX",
+///   "upi_ref": "UTR / UPI txn id",
+///   "idempotency_key": "client-generated uuid (safe to retry)",
+///   "items": [{ "id": 12, "quantity": 2 }]
+/// }
+/// ```
 class PlaceOrderRequest extends Equatable {
   const PlaceOrderRequest({
     required this.paymentMode,
     required this.items,
+    this.orderType = OrderType.takeaway,
+    this.discountAmount = 0.0,
+    this.customerName = '',
+    this.customerPhone = '',
+    this.upiRef = '',
+    required this.idempotencyKey,
   });
 
   final PaymentMode paymentMode;
+  final OrderType orderType;
   final List<OrderLineRequest> items;
+  final double discountAmount;
+  final String customerName;
+  final String customerPhone;
+  final String upiRef;
+  final String idempotencyKey;
 
   Map<String, dynamic> toJson() => {
         'payment_mode': paymentMode.wireValue,
+        'order_type': orderType.wireValue,
         'items': items.map((line) => line.toJson()).toList(),
+        if (discountAmount > 0) 'discount_amount': discountAmount.toStringAsFixed(2),
+        if (customerName.trim().isNotEmpty) 'customer_name': customerName.trim(),
+        if (customerPhone.trim().isNotEmpty) 'customer_phone': customerPhone.trim(),
+        if (upiRef.trim().isNotEmpty) 'upi_ref': upiRef.trim(),
+        'idempotency_key': idempotencyKey,
       };
 
   @override
-  List<Object?> get props => [paymentMode, items];
+  List<Object?> get props => [
+        paymentMode,
+        orderType,
+        items,
+        discountAmount,
+        customerName,
+        customerPhone,
+        upiRef,
+        idempotencyKey,
+      ];
 }
