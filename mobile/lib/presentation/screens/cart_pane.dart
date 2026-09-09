@@ -1,16 +1,26 @@
 import 'package:flutter/material.dart';
 
 import '../../features/orders/cart_controller.dart';
+import '../../features/orders/data/models/cart_line.dart';
 import '../../features/orders/data/models/order_models.dart';
+import '../theme/bizbite_theme.dart';
 import '../widgets/amount.dart';
 import '../widgets/status_banner.dart';
 
-/// The open bill — line items, payment/order-type pickers, customer fields
-/// and the settle button.
+/// Screen 2 — Cart & Billing Summary (the "bill" half of the POS).
+///
+/// Used two ways by [PosScreen]:
+///  * side-sheet panel on tablets / landscape (≥ 840dp),
+///  * inside a draggable bottom sheet on phones (opened from the bill bar).
+///
+/// Structure: fixed header (item count + clear) → scrollable line list with
+/// quantity steppers and per-line kitchen notes → payment chips + optional
+/// customer/discount details → FIXED bottom billing summary with the
+/// high-contrast "Process & Print Receipt" action.
 ///
 /// Reactive: rendered inside `ListenableBuilder(listenable: cartController)`,
-/// so every quantity bump, payment switch and discount edit re-renders this
-/// pane immediately.
+/// so every quantity bump, payment switch and discount edit re-renders
+/// immediately.
 class CartPane extends StatelessWidget {
   const CartPane({
     super.key,
@@ -43,250 +53,505 @@ class CartPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasItems = !cart.isEmpty;
+
+    return Column(
+      children: [
+        _header(context, hasItems),
+        StatusBanner(text: error, error: true),
+        Expanded(child: hasItems ? _billBody(context) : _emptyState(context)),
+        _billingFooter(context, hasItems),
+      ],
+    );
+  }
+
+  // --- Header ---------------------------------------------------------------
+
+  Widget _header(BuildContext context, bool hasItems) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
-    final hasItems = !cart.isEmpty;
-
-    return Container(
-      margin: EdgeInsets.all(8),
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+      child: Row(
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            spacing: 8,
-            children: [
-              Icon(Icons.shopping_bag, size: 20, color: scheme.primary),
-              Expanded(
-                child: Text(
-                  hasItems
-                      ? 'Bill — ${cart.totalQuantity} item(s)'
-                      : 'Add items to start the bill',
-                  style: theme.textTheme.titleSmall,
-                ),
-              ),
-              if (hasItems)
-                TextButton(
-                  onPressed: () => cart.clear(),
-                  child: Text('Clear',
-                      style: theme.textTheme.labelMedium, selectionColor: scheme.error),
-                ),
-            ],
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: BizBiteTheme.brandSoft,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.receipt_long_rounded,
+                size: 19, color: BizBiteTheme.brandDeep),
           ),
-          SizedBox(height: 8),
-          StatusBanner(text: error, error: true),
-          SizedBox(height: 4),
-          if (hasItems) _lines(theme, scheme),
-          if (hasItems) _orderTypeRow(theme, scheme),
-          if (hasItems) _paymentRow(theme, scheme),
-          if (hasItems) _totals(theme, scheme),
-          _settleBar(theme, scheme, hasItems),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Current Bill',
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+                Text(
+                  hasItems
+                      ? '${cart.totalQuantity} item(s) · ${cart.lines.length} line(s)'
+                      : 'Nothing added yet',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          if (hasItems)
+            TextButton(
+              onPressed: () => cart.clear(),
+              style: TextButton.styleFrom(
+                foregroundColor: scheme.error,
+                textStyle:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+              ),
+              child: const Text('Clear'),
+            ),
         ],
       ),
     );
   }
 
-  Widget _lines(ThemeData theme, ColorScheme scheme) {
-    return SizedBox(
-      height: 180,
-      child: ListView(
-        children: cart.lines.map((line) {
-          return Row(
-            spacing: 8,
+  // --- Body -----------------------------------------------------------------
+
+  Widget _billBody(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      children: [
+        for (final line in cart.lines) _lineTile(context, line),
+        const SizedBox(height: 8),
+        _paymentSection(context),
+        _customerSection(context),
+        const SizedBox(height: 4),
+        _totalsRows(context),
+      ],
+    );
+  }
+
+  Widget _emptyState(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.room_service_rounded, size: 44, color: scheme.outline),
+          const SizedBox(height: 10),
+          Text('Add items to start the bill',
+              style: theme.textTheme.bodyLarge
+                  ?.copyWith(color: scheme.onSurfaceVariant)),
+          const SizedBox(height: 4),
+          Text('Tap any item on the menu grid',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: scheme.outline)),
+        ],
+      ),
+    );
+  }
+
+  /// One bill line: name + unit price, quantity stepper, line total and an
+  /// "Add note" affordance for kitchen instructions.
+  Widget _lineTile(BuildContext context, CartLine line) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        children: [
+          Row(
             children: [
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(line.foodItem.name, style: theme.textTheme.bodyMedium),
-                    Text('${inr(line.foodItem.price)} each',
-                        style: theme.textTheme.bodySmall,
-                        selectionColor: scheme.onSurfaceVariant),
+                    Text(
+                      line.foodItem.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      '${inr(line.foodItem.price)} each',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
                   ],
                 ),
               ),
-              IconButton(
-                icon: Icon(Icons.remove_circle_outline, size: 18),
-                tooltip: 'Remove',
-                onPressed: () => cart.setQuantity(line.foodItem.id, line.quantity - 1),
-              ),
-              Text('${line.quantity}',
-                  style: theme.textTheme.labelLarge,
-                  selectionColor: scheme.onSurface),
-              IconButton(
-                icon: Icon(Icons.add_circle, size: 18),
-                tooltip: 'Add one',
-                onPressed: () => cart.setQuantity(line.foodItem.id, line.quantity + 1),
-              ),
+              _stepper(context, line),
+              const SizedBox(width: 10),
               SizedBox(
                 width: 76,
-                child: Text(inr(line.lineTotal),
-                    textAlign: TextAlign.end,
-                    style: theme.textTheme.bodyMedium,
-                    selectionColor: scheme.onSurface),
+                child: Text(
+                  inr(line.lineTotal),
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(
+                          fontSize: 14.5, fontWeight: FontWeight.w800)
+                      .merge(BizBiteTheme.numeral),
+                ),
               ),
             ],
-          );
-        }).toList(),
+          ),
+          _noteRow(context, line),
+        ],
       ),
     );
   }
 
-  Widget _optionRow({
-    required ThemeData theme,
-    required List<({String label, bool selected, VoidCallback onTap})> options,
-  }) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: options.map((option) {
-        final label = Text(option.label, style: theme.textTheme.labelMedium);
-        return option.selected
-            ? FilledButton(onPressed: option.onTap, child: label)
-            : OutlinedButton(onPressed: option.onTap, child: label);
-      }).toList(),
+  /// 32dp quantity stepper — "−" removes, "+" adds; hitting 0 drops the line
+  /// (CartController semantics).
+  Widget _stepper(BuildContext context, CartLine line) {
+    return Container(
+      height: 32,
+      decoration: ShapeDecoration(
+        shape: StadiumBorder(
+            side: const BorderSide(color: BizBiteTheme.hairline)),
+        color: Colors.white,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            borderRadius:
+                const BorderRadius.horizontal(left: Radius.circular(16)),
+            onTap: () =>
+                cart.setQuantity(line.foodItem.id, line.quantity - 1),
+            child: const SizedBox(
+              width: 32,
+              height: 32,
+              child: Icon(Icons.remove_rounded,
+                  size: 16, color: BizBiteTheme.inkMuted),
+            ),
+          ),
+          SizedBox(
+            width: 26,
+            child: Text(
+              '${line.quantity}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                      fontSize: 13.5, fontWeight: FontWeight.w800)
+                  .merge(BizBiteTheme.numeral),
+            ),
+          ),
+          InkWell(
+            borderRadius:
+                const BorderRadius.horizontal(right: Radius.circular(16)),
+            onTap: () =>
+                cart.setQuantity(line.foodItem.id, line.quantity + 1),
+            child: const SizedBox(
+              width: 32,
+              height: 32,
+              child: Icon(Icons.add_rounded,
+                  size: 16, color: BizBiteTheme.brandDeep),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _orderTypeRow(ThemeData theme, ColorScheme scheme) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 92,
-          child: Text('Order type', style: theme.textTheme.labelMedium),
+  Widget _noteRow(BuildContext context, CartLine line) {
+    final hasNote = line.note.isNotEmpty;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return InkWell(
+      onTap: () => _editNote(context, line),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Row(
+          children: [
+            Icon(
+              Icons.edit_note_rounded,
+              size: 17,
+              color: hasNote ? BizBiteTheme.brand : scheme.outline,
+            ),
+            const SizedBox(width: 5),
+            Expanded(
+              child: Text(
+                hasNote ? line.note : 'Add note',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: hasNote ? FontWeight.w600 : FontWeight.w500,
+                  color: hasNote ? BizBiteTheme.brandDeep : scheme.outline,
+                ),
+              ),
+            ),
+          ],
         ),
-        Expanded(
-          child: _optionRow(
-            theme: theme,
-            options: OrderType.values.map((type) {
-              return (
-                label: type.label,
-                selected: cart.orderType == type,
-                onTap: () => cart.setOrderType(type),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
-    );
-  }
-  Widget _paymentRow(ThemeData theme, ColorScheme scheme) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 92,
-          child: Text('Payment', style: theme.textTheme.labelMedium),
-        ),
-        Expanded(
-          child: _optionRow(
-            theme: theme,
-            options: PaymentMode.values.map((mode) {
-              return (
-                label: mode.label,
-                selected: cart.paymentMode == mode,
-                onTap: () => cart.setPaymentMode(mode),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
-  Widget _totals(ThemeData theme, ColorScheme scheme) {
+  Future<void> _editNote(BuildContext context, CartLine line) async {
+    final controller = TextEditingController(text: line.note);
+    final note = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Note — ${line.foodItem.name}',
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 2,
+          decoration:
+              const InputDecoration(hintText: 'e.g. No onion, extra spicy'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (note != null) cart.setNote(line.foodItem.id, note);
+  }
+
+  /// Payment mode chips + the UPI reference field when UPI is selected.
+  Widget _paymentSection(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextField(
-          controller: discountController,
-          decoration: InputDecoration(
-            labelText: 'Discount (₹)',
-            icon: Icon(Icons.currency_rupee),
+        Text(
+          'PAYMENT',
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.8,
+            color: scheme.onSurfaceVariant,
           ),
-          onChanged: onDiscountChanged,
         ),
-        SizedBox(height: 4),
-        TextField(
-          controller: customerController,
-          decoration: InputDecoration(labelText: 'Customer name'),
-          onChanged: onCustomerChanged,
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final mode in PaymentMode.values)
+              ChoiceChip(
+                label: Text(mode.label),
+                selected: cart.paymentMode == mode,
+                onSelected: (_) => cart.setPaymentMode(mode),
+                showCheckmark: false,
+                labelStyle: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: cart.paymentMode == mode
+                      ? BizBiteTheme.brandDeep
+                      : scheme.onSurfaceVariant,
+                ),
+                selectedColor: BizBiteTheme.brandSoft,
+                backgroundColor: Colors.white,
+                side: const BorderSide(color: BizBiteTheme.hairline),
+              ),
+          ],
         ),
-        SizedBox(height: 4),
-        TextField(
-          controller: phoneController,
-          decoration: InputDecoration(
-            labelText: 'Customer phone',
-            icon: Icon(Icons.phone),
-          ),
-          onChanged: onPhoneChanged,
-        ),
-        SizedBox(height: 4),
-        if (cart.paymentMode == PaymentMode.upi)
+        if (cart.paymentMode == PaymentMode.upi) ...[
+          const SizedBox(height: 10),
           TextField(
             controller: upiRefController,
-            decoration: InputDecoration(
-              labelText: 'UPI transaction ref',
-              icon: Icon(Icons.qr_code),
-            ),
             onChanged: onUpiRefChanged,
-          ),
-        SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: Text('Subtotal', style: theme.textTheme.bodyMedium),
+            decoration: const InputDecoration(
+              labelText: 'UPI transaction ref',
+              prefixIcon: Icon(Icons.qr_code_rounded),
             ),
-            Text(inr(cart.subtotal), style: theme.textTheme.bodyMedium),
-          ],
-        ),
-        if (cart.effectiveDiscount > 0)
-          Row(
-            children: [
-              Expanded(
-                child: Text('Discount', style: theme.textTheme.bodyMedium),
-              ),
-              Text('-${inr(cart.effectiveDiscount)}',
-                  style: theme.textTheme.bodyMedium),
-            ],
           ),
-        Row(
-          children: [
-            Expanded(
-              child: Text('PAYABLE', style: theme.textTheme.titleSmall),
-            ),
-            Text(inr(cart.payable),
-                style: theme.textTheme.titleMedium,
-                selectionColor: scheme.primary),
-          ],
-        ),
+        ],
+        const SizedBox(height: 6),
       ],
     );
   }
 
-  Widget _settleBar(ThemeData theme, ColorScheme scheme, bool hasItems) {
-    return Row(
-      children: [
-        Expanded(
-          child: FilledButton.icon(
-            icon: Icon(Icons.check_circle, size: 20),
-            label: Text(
-              settling
-                  ? 'Settling…'
-                  : (hasItems ? 'Settle ${inr(cart.payable)}' : 'Settle'),
-              style: theme.textTheme.titleSmall,
-            ),
-            onPressed: settling || !hasItems ? () {} : () => onSettle?.call(),
-          ),
+  /// Optional customer & discount fields, collapsed by default to keep the
+  /// bill scannable during rush hours.
+  Widget _customerSection(BuildContext context) {
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: const EdgeInsets.only(bottom: 10),
+        title: const Text(
+          'Customer & discount (optional)',
+          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
         ),
+        children: [
+          TextField(
+            controller: discountController,
+            onChanged: onDiscountChanged,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Discount (₹)',
+              prefixIcon: Icon(Icons.currency_rupee_rounded),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: customerController,
+            onChanged: onCustomerChanged,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Customer name',
+              prefixIcon: Icon(Icons.person_outline_rounded),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: phoneController,
+            onChanged: onPhoneChanged,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+              labelText: 'Customer phone',
+              prefixIcon: Icon(Icons.phone_outlined),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Subtotal / discount / (tax, once the backend exposes it) rows above the
+  /// fixed grand-total footer.
+  Widget _totalsRows(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    Widget row(String label, String value, {Color? color}) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(label,
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: color ?? scheme.onSurfaceVariant)),
+            ),
+            Text(
+              value,
+              style: TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                      color: color ?? scheme.onSurface)
+                  .merge(BizBiteTheme.numeral),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        row('Subtotal', inr(cart.subtotal)),
+        if (cart.effectiveDiscount > 0)
+          row('Discount', '-${inr(cart.effectiveDiscount)}',
+              color: BizBiteTheme.success),
+        // NOTE: Tax rows render here automatically once the backend returns
+        // tax breakdown fields on POST /api/orders (hooks reserved in
+        // POS_UI_DESIGN_SPEC.md).
       ],
+    );
+  }
+
+  /// Fixed bottom billing summary — grand total in large bold numerals plus
+  /// the high-contrast "Process & Print Receipt" action (56dp tall).
+  Widget _billingFooter(BuildContext context, bool hasItems) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: BizBiteTheme.hairline)),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'GRAND TOTAL',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.1,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      inr(cart.payable),
+                      style: const TextStyle(
+                              fontSize: 25,
+                              fontWeight: FontWeight.w800,
+                              height: 1.05)
+                          .merge(BizBiteTheme.numeral),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.verified_rounded,
+                size: 20,
+                color: hasItems ? BizBiteTheme.success : scheme.outline,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: FilledButton.icon(
+              onPressed: settling || !hasItems ? null : () => onSettle?.call(),
+              style: FilledButton.styleFrom(
+                backgroundColor: BizBiteTheme.brand,
+                disabledBackgroundColor: BizBiteTheme.hairline,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+              ),
+              icon: settling
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2.2, color: Colors.white),
+                    )
+                  : const Icon(Icons.print_rounded, size: 20),
+              label: Text(
+                settling ? 'Processing…' : 'Process & Print Receipt',
+                style: const TextStyle(
+                    fontSize: 15.5, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

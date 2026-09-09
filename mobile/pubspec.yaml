@@ -55,6 +55,7 @@ dependencies:
 
   # --- Formatting -----------------------------------------------------------
   intl: ^0.20.0               # ₹ currency + receipt timestamp formatting
+  qr_flutter: ^4.1.0
 
 # Vendored copy of blue_thermal_printer 1.2.3 with Android fixes for modern
 # AGP: explicit `namespace`, compileSdk 34, and no legacy manifest `package`

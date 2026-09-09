@@ -73,10 +73,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('$storeName — Pay Desk'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(storeName),
+            Text(
+              'Pay Desk',
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: Colors.white.withValues(alpha: 0.64),
+                letterSpacing: 0.4,
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
-            icon: Icon(Icons.logout, size: 20),
+            icon: Icon(Icons.logout_rounded, size: 20),
             tooltip: 'Sign out',
             onPressed: _onLogout,
           ),

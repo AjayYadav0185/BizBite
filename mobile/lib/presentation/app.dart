@@ -15,6 +15,7 @@ import 'screens/login_screen.dart';
 import 'screens/receipt_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/receipt_printer.dart';
+import 'theme/bizbite_theme.dart';
 
 /// Root of the BizBite mobile POS.
 ///
@@ -104,9 +105,7 @@ class _BizBiteAppState extends State<BizBiteApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'BizBite',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange),
-      ),
+      theme: BizBiteTheme.light(),
       home: ListenableBuilder(
         listenable: _session,
         builder: (context, child) {

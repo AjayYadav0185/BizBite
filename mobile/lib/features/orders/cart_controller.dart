@@ -64,6 +64,17 @@ class CartController with ChangeNotifier implements Listenable {
     notifyListeners();
   }
 
+  /// Attach a kitchen-facing special instruction to a cart line (POS UI
+  /// "Add note" affordance). No-op when the line no longer exists.
+  void setNote(int foodItemId, String note) {
+    final existing = _lines[foodItemId];
+    if (existing == null) return;
+    final trimmed = note.trim();
+    if (existing.note == trimmed) return;
+    _lines[foodItemId] = existing.copyWith(note: trimmed);
+    notifyListeners();
+  }
+
   void remove(int foodItemId) {
     if (_lines.remove(foodItemId) != null) {
       notifyListeners();
