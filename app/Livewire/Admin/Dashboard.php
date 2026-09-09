@@ -15,6 +15,8 @@ use Livewire\Component;
  *   - Livewire\Admin\MenuManager        (menu CRUD + availability toggles)
  *   - Livewire\Admin\ReceiptCustomizer  (print header/footer bindings)
  *   - Livewire\Admin\SalesSummary       (today's KPIs, tenant scoped)
+ *   - Livewire\Admin\AuditLogViewer     (owner-only audit trail: prices,
+ *     discounts, credit bills, settings, staff activity)
  *
  * Tabs are deep-linkable via the `?tab=` query string so the owner can
  * bookmark each management screen. Every child is an isolated Livewire 3
@@ -30,7 +32,7 @@ final class Dashboard extends Component
     public string $tab = 'menu';
 
     /** Whitelist of renderable tabs (child components). */
-    private const TABS = ['menu', 'receipt', 'sales'];
+    private const TABS = ['menu', 'receipt', 'sales', 'logs'];
 
     public function mount(): void
     {

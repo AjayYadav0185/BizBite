@@ -21,6 +21,10 @@
                         @class(['rounded-lg px-3 py-2 transition', $tab === 'sales' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-200'])>
                     Sales Summary
                 </button>
+                <button wire:click="switchTab('logs')"
+                        @class(['rounded-lg px-3 py-2 transition', $tab === 'logs' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-200'])>
+                    Audit Logs
+                </button>
                 <a href="{{ route('pos.billing') }}"
                    class="ml-2 rounded-lg bg-emerald-500 px-3 py-2 text-white transition hover:bg-emerald-400">
                     POS →
@@ -39,6 +43,8 @@
             <livewire:admin.receipt-customizer :key="'receipt'" />
         @elseif ($tab === 'sales')
             <livewire:admin.sales-summary :key="'sales'" />
+        @elseif ($tab === 'logs')
+            <livewire:admin.audit-log-viewer :key="'logs'" />
         @endif
     </main>
 </div>

@@ -2,7 +2,9 @@
 
 namespace App\Livewire\Auth;
 
+use App\Models\AuditLog;
 use App\Models\Enums\UserRole;
+use App\Services\Audit;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
@@ -47,6 +49,17 @@ final class Login extends Component
         }
 
         session()->regenerate();
+
+        $user = Auth::user();
+        $user->forceFill(['last_login_at' => now()])->saveQuietly();
+
+        Audit::record(
+            $user,
+            AuditLog::ACTION_STAFF_LOGIN,
+            $user->name.' signed in on web/POS.',
+            entityType: 'session',
+            entityName: $user->name,
+        );
 
         $this->redirect(
             Auth::user()?->role === UserRole::Admin ? route('admin.dashboard') : route('pos.billing'),

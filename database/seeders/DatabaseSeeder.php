@@ -2,18 +2,25 @@
 
 namespace Database\Seeders;
 
+use App\Models\AuditLog;
 use App\Models\Category;
 use App\Models\FoodItem;
 use App\Models\Store;
 use App\Models\User;
 use App\Models\Enums\UserRole;
+use App\Services\Audit;
+use App\Services\OrderService;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
     /**
      * Seed a North Indian food outlet (Apna Zaika) with Indian staff,
-     * North Indian categories and INR-priced menu items.
+     * North Indian categories and INR-priced menu items, plus a few
+     * illustrative audit-log rows so the owner's Audit Logs tab is not
+     * empty on a fresh install (price change, discount, credit bill,
+     * availability toggle, settings edit, staff logins).
      *
      * We create the store first and pass its ID explicitly to every
      * child create call. This prevents the factory definitions' default

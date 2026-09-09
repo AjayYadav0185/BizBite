@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Admin;
 
+use App\Services\Audit;
+use App\Models\AuditLog;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
@@ -63,10 +65,27 @@ final class ReceiptCustomizer extends Component
             'printFooter' => ['nullable', 'string', 'max:120'],
         ]);
 
-        $this->store()->update([
+        $store = $this->store();
+        $old = ['print_header' => $store->print_header, 'print_footer' => $store->print_footer];
+        $new = [
             'print_header' => trim($validated['printHeader']) ?: null,
             'print_footer' => trim($validated['printFooter']) ?: null,
-        ]);
+        ];
+
+        $store->update($new);
+
+        if ($old !== $new) {
+            Audit::record(
+                auth()->user(),
+                AuditLog::ACTION_STORE_SETTINGS,
+                'Receipt template updated.',
+                entityType: 'store',
+                entityId: $store->id,
+                entityName: $store->name,
+                old: $old,
+                new: $new,
+            );
+        }
 
         $this->saved = true;
     }

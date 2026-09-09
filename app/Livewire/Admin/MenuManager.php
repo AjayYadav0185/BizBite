@@ -4,6 +4,8 @@ namespace App\Livewire\Admin;
 
 use App\Models\Category;
 use App\Models\FoodItem;
+use App\Services\Audit;
+use App\Models\AuditLog;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -83,6 +85,15 @@ final class MenuManager extends Component
             'is_active' => true,
         ]);
 
+        Audit::record(
+            auth()->user(),
+            AuditLog::ACTION_CATEGORY_CREATED,
+            'Category "'.trim($this->newCategoryName).'" created.',
+            entityType: 'category',
+            entityName: trim($this->newCategoryName),
+            new: ['name' => trim($this->newCategoryName)],
+        );
+
         $this->reset('newCategoryName');
     }
 
@@ -101,9 +112,23 @@ final class MenuManager extends Component
             'editingCategoryName' => ['required', 'min:2', 'max:60'],
         ]);
 
-        Category::whereKey($this->editingCategoryId)->update([
+        $category = Category::findOrFail($this->editingCategoryId);
+        $oldName = $category->name;
+
+        $category->update([
             'name' => trim($this->editingCategoryName),
         ]);
+
+        Audit::record(
+            auth()->user(),
+            AuditLog::ACTION_CATEGORY_UPDATED,
+            'Category renamed from "'.$oldName.'" to "'.trim($this->editingCategoryName).'".',
+            entityType: 'category',
+            entityId: $category->id,
+            entityName: trim($this->editingCategoryName),
+            old: ['name' => $oldName],
+            new: ['name' => trim($this->editingCategoryName)],
+        );
 
         $this->cancelCategoryEdit();
     }
@@ -116,7 +141,19 @@ final class MenuManager extends Component
     public function toggleCategory(int $categoryId): void
     {
         $category = Category::findOrFail($categoryId);
+        $old = $category->is_active;
         $category->update(['is_active' => ! $category->is_active]);
+
+        Audit::record(
+            auth()->user(),
+            AuditLog::ACTION_CATEGORY_UPDATED,
+            'Category "'.$category->name.'" '.($category->is_active ? 'activated' : 'deactivated').'.',
+            entityType: 'category',
+            entityId: $category->id,
+            entityName: $category->name,
+            old: ['is_active' => $old],
+            new: ['is_active' => $category->is_active],
+        );
     }
 
     public function deleteCategory(int $categoryId): void
@@ -132,7 +169,18 @@ final class MenuManager extends Component
             return;
         }
 
+        $name = $category->name;
         $category->delete();
+
+        Audit::record(
+            auth()->user(),
+            AuditLog::ACTION_CATEGORY_DELETED,
+            'Category "'.$name.'" deleted.',
+            entityType: 'category',
+            entityId: $categoryId,
+            entityName: $name,
+            old: ['name' => $name],
+        );
     }
 
     // -----------------------------------------------------------------
@@ -155,7 +203,7 @@ final class MenuManager extends Component
         // below is constrained by the global StoreScope automatically.
         Category::findOrFail($this->newItem['category_id']);
 
-        FoodItem::create([
+        $item = FoodItem::create([
             'store_id' => auth()->user()->store_id,
             'category_id' => (int) $this->newItem['category_id'],
             'name' => trim($this->newItem['name']),
@@ -163,13 +211,36 @@ final class MenuManager extends Component
             'is_available' => true,
         ]);
 
+        Audit::record(
+            auth()->user(),
+            AuditLog::ACTION_ITEM_CREATED,
+            'Item "'.$item->name.'" created at ₹'.number_format((float) $item->price, 2).'.',
+            entityType: 'food_item',
+            entityId: $item->id,
+            entityName: $item->name,
+            new: ['name' => $item->name, 'price' => (string) $item->price, 'category_id' => $item->category_id],
+            amount: (string) $item->price,
+        );
+
         $this->reset('newItem');
     }
 
     public function toggleItem(int $itemId): void
     {
         $item = FoodItem::findOrFail($itemId);
+        $old = $item->is_available;
         $item->update(['is_available' => ! $item->is_available]);
+
+        Audit::record(
+            auth()->user(),
+            AuditLog::ACTION_ITEM_AVAILABILITY,
+            'Item "'.$item->name.'" marked '.($item->is_available ? 'available' : 'unavailable').'.',
+            entityType: 'food_item',
+            entityId: $item->id,
+            entityName: $item->name,
+            old: ['is_available' => $old],
+            new: ['is_available' => $item->is_available],
+        );
     }
 
     public function editItem(int $itemId): void
@@ -198,11 +269,48 @@ final class MenuManager extends Component
 
         Category::findOrFail($this->editingItem['category_id']);
 
-        FoodItem::whereKey($this->editingItemId)->update([
-            'name' => trim($this->editingItem['name']),
-            'price' => round((float) $this->editingItem['price'], 2),
+        $item = FoodItem::findOrFail($this->editingItemId);
+        $oldName = $item->name;
+        $oldPrice = (string) $item->price;
+        $oldCategoryId = $item->category_id;
+
+        $newName = trim($this->editingItem['name']);
+        $newPrice = number_format(round((float) $this->editingItem['price'], 2), 2, '.', '');
+
+        $item->update([
+            'name' => $newName,
+            'price' => $newPrice,
             'category_id' => (int) $this->editingItem['category_id'],
         ]);
+
+        // Price changes get their own first-class action — this is the log
+        // the owner checks daily ("who changed Paneer Tikka 200 → 220?").
+        if (bccomp($oldPrice, $newPrice, 2) !== 0) {
+            Audit::record(
+                auth()->user(),
+                AuditLog::ACTION_PRICE_UPDATED,
+                'Price of "'.$newName.'" changed from ₹'.number_format((float) $oldPrice, 2).' to ₹'.number_format((float) $newPrice, 2).'.',
+                entityType: 'food_item',
+                entityId: $item->id,
+                entityName: $newName,
+                old: ['price' => $oldPrice],
+                new: ['price' => $newPrice],
+                amount: $newPrice,
+            );
+        }
+
+        if ($oldName !== $newName || (int) $oldCategoryId !== (int) $this->editingItem['category_id']) {
+            Audit::record(
+                auth()->user(),
+                AuditLog::ACTION_ITEM_CREATED,
+                'Item updated: "'.$oldName.'" → "'.$newName.'".',
+                entityType: 'food_item',
+                entityId: $item->id,
+                entityName: $newName,
+                old: ['name' => $oldName, 'category_id' => $oldCategoryId],
+                new: ['name' => $newName, 'category_id' => (int) $this->editingItem['category_id']],
+            );
+        }
 
         $this->cancelItemEdit();
     }
@@ -214,7 +322,21 @@ final class MenuManager extends Component
 
     public function deleteItem(int $itemId): void
     {
-        FoodItem::findOrFail($itemId)->delete();
+        $item = FoodItem::findOrFail($itemId);
+        $name = $item->name;
+        $price = (string) $item->price;
+        $item->delete();
+
+        Audit::record(
+            auth()->user(),
+            AuditLog::ACTION_ITEM_DELETED,
+            'Item "'.$name.'" (₹'.number_format((float) $price, 2).') deleted.',
+            entityType: 'food_item',
+            entityId: $itemId,
+            entityName: $name,
+            old: ['name' => $name, 'price' => $price],
+            amount: $price,
+        );
     }
 
     public function render()

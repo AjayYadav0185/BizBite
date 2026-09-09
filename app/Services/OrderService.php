@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AuditLog;
 use App\Models\Enums\OrderStatus;
 use App\Models\Enums\OrderType;
 use App\Models\Enums\PaymentMode;
@@ -223,6 +224,34 @@ final class OrderService
                     'paid_at' => now(),
                 ]);
                 $order->setRelation('items', $order->items()->get());
+
+                // Owner audit trail: discounts, credit bills and UPI refs are
+                // the entries the admin reviews (cashier writes, admin reads).
+                if (bccomp($discountAmount, '0', 2) > 0) {
+                    Audit::record(
+                        $user,
+                        AuditLog::ACTION_ORDER_DISCOUNT,
+                        'Discount ₹'.number_format((float) $discountAmount, 2).' given on bill '.$order->order_number.'.',
+                        entityType: 'order',
+                        entityId: $order->id,
+                        entityName: $order->order_number,
+                        new: ['discount_amount' => $discountAmount, 'total_amount' => $rounded],
+                        amount: $discountAmount,
+                    );
+                }
+
+                if ($paymentMode === PaymentMode::Credit) {
+                    Audit::record(
+                        $user,
+                        AuditLog::ACTION_CREDIT_BILL,
+                        'Credit bill '.$order->order_number.' for ₹'.number_format((float) $rounded, 2).($customerName ? ' ('.$customerName.')' : '').'.',
+                        entityType: 'order',
+                        entityId: $order->id,
+                        entityName: $order->order_number,
+                        new: ['payment_mode' => 'credit', 'total_amount' => $rounded, 'customer_name' => $customerName, 'customer_phone' => $customerPhone],
+                        amount: $rounded,
+                    );
+                }
 
                 return OrderReceipt::fromOrder(
                     order: $order,

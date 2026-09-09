@@ -113,4 +113,14 @@ class Store extends Model
     {
         return $this->hasMany(Payment::class);
     }
+
+    /**
+     * Get the audit trail for the store (owner eyes only via gate).
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\AuditLog>
+     */
+    public function auditLogs()
+    {
+        return $this->hasMany(AuditLog::class);
+    }
 }

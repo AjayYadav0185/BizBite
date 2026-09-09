@@ -45,6 +45,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/orders', [OrderApiController::class, 'store'])
         ->middleware('role:admin,cashier');
 
-    // POST /api/logout — revokes the token used for the current request.
-    Route::post('/logout', [AuthController::class, 'logout']);
+    // ANY /api/logout — revokes the token used for the current request.
+    // Accepts GET/POST/DELETE so Flutter, browsers and API clients never
+    // hit a 405 "Method Not Allowed" at logout time.
+    Route::match(['get', 'post', 'delete'], '/logout', [AuthController::class, 'logout']);
 });

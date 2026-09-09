@@ -55,6 +55,10 @@ class AppServiceProvider extends ServiceProvider
         // Fine grained gate: only admins may mutate the menu or store setup.
         Gate::define('manage-menu', fn (User $user): bool => $user->role === UserRole::Admin);
 
+        // Audit logs: WRITE happens implicitly inside business actions, but
+        // READ is strictly owner-only. There is no API route for logs at all.
+        Gate::define('view-audit-logs', fn (User $user): bool => $user->role === UserRole::Admin);
+
         // Any staff member may settle bills (used by OrderService callers).
         Gate::define('place-orders', fn (User $user): bool => $user->role === UserRole::Admin
             || $user->role === UserRole::Cashier

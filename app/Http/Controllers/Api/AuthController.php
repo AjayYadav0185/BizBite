@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\User;
+use App\Services\Audit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -40,6 +42,14 @@ class AuthController extends Controller
         ], status: 403));
 
         $user->forceFill(['last_login_at' => now()])->saveQuietly();
+
+        Audit::record(
+            $user,
+            AuditLog::ACTION_STAFF_LOGIN,
+            $user->name.' signed in'.($request->filled('device_id') ? ' from device '.$request->input('device_id') : ' on web/POS').'.',
+            entityType: 'session',
+            entityName: $user->name,
+        );
 
         // Flutter Phase 2: bind the device (FCM push + offline sync bookkeeping).
         $request->validate([
@@ -88,10 +98,14 @@ class AuthController extends Controller
 
     /**
      * Revoke the Sanctum token used for the current request (Flutter logout).
+     *
+     * Safe to call with any verb (GET/POST/DELETE) and safe to call twice:
+     * if the token was already revoked, we still return success so the
+     * Flutter client can always clear local state without a 405/500.
      */
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        $request->user()?->currentAccessToken()?->delete();
 
         return Response::json([
             'message' => 'Logged out successfully.',
