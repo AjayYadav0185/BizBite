@@ -17,6 +17,8 @@ class User extends Authenticatable
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasApiTokens;
 
+    protected $table = 'tbl_users';
+
     /**
      * The attributes that are mass assignable.
      *
@@ -26,8 +28,11 @@ class User extends Authenticatable
         'store_id',
         'name',
         'email',
+        'phone',
         'password',
         'role',
+        'is_active',
+        'last_login_at',
     ];
 
     /**
@@ -51,6 +56,8 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,
+            'is_active' => 'boolean',
+            'last_login_at' => 'datetime',
         ];
     }
 

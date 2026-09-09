@@ -13,11 +13,15 @@ return new class extends Migration
     {
         // Rework the default users table into the multi-tenant shape while keeping
         // the columns the framework's session / password-reset services expect.
-        Schema::table('users', function (Blueprint $table) {
+        Schema::table('tbl_users', function (Blueprint $table) {
             $table->foreignId('store_id')->nullable()->index()->constrained(
-                table: 'stores'
+                table: 'tbl_stores'
             )->cascadeOnDelete();
             $table->enum('role', ['admin', 'cashier'])->default('cashier')->index();
+            // Indian market: 10-digit mobile (stored with +91 optional), active flag + login tracking.
+            $table->string('phone', 15)->nullable()->after('email');
+            $table->boolean('is_active')->default(true)->after('role')->index();
+            $table->timestamp('last_login_at')->nullable()->after('remember_token');
         });
     }
 
@@ -26,9 +30,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
+        Schema::table('tbl_users', function (Blueprint $table) {
             $table->dropConstrainedForeignId('store_id');
-            $table->dropColumn('role');
+            $table->dropColumn(['role', 'phone', 'is_active', 'last_login_at']);
         });
     }
 };

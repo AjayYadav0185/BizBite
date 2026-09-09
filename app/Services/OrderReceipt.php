@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\Enums\OrderType;
 use App\Models\Enums\PaymentMode;
+use App\Models\Enums\PaymentStatus;
 use App\Models\Order;
 use App\Models\OrderItem;
 
@@ -51,6 +53,15 @@ final class OrderReceipt
         public readonly PaymentMode $paymentMode,
         public readonly string $placedAt,
         public readonly ?string $cashierName = null,
+        public readonly string $subtotal = '0.00',
+        public readonly string $discountAmount = '0.00',
+        public readonly string $taxAmount = '0.00',
+        public readonly string $roundOff = '0.00',
+        public readonly ?OrderType $orderType = null,
+        public readonly ?PaymentStatus $paymentStatus = null,
+        public readonly ?string $upiRef = null,
+        public readonly ?string $customerName = null,
+        public readonly ?string $customerPhone = null,
     ) {}
 
     /**
@@ -71,9 +82,18 @@ final class OrderReceipt
         return [
             'order_id' => $this->order->id,
             'order_number' => $this->order->order_number,
+            'subtotal' => $this->subtotal,
+            'discount_amount' => $this->discountAmount,
+            'tax_amount' => $this->taxAmount,
+            'round_off' => $this->roundOff,
             'total_amount' => $this->totalAmount,
             'payment_mode' => $this->paymentMode->value,
+            'payment_status' => $this->paymentStatus?->value ?? $this->order->payment_status?->value,
             'status' => $this->order->status->value,
+            'order_type' => $this->orderType?->value ?? $this->order->order_type?->value,
+            'upi_ref' => $this->upiRef ?? $this->order->upi_ref,
+            'customer_name' => $this->customerName ?? $this->order->customer_name,
+            'customer_phone' => $this->customerPhone ?? $this->order->customer_phone,
             'store' => [
                 'name' => $this->storeName,
                 'phone' => $this->storePhone,
@@ -84,12 +104,15 @@ final class OrderReceipt
             'cashier' => $this->cashierName,
             'placed_at' => $this->placedAt,
             'total_quantity' => $this->totalQuantity(),
+            'currency' => 'INR',
             'items' => array_map(
                 fn (array $item): array => [
                     'food_item_name' => $item['food_item_name'],
                     'quantity' => (int) $item['quantity'],
                     'price' => (string) $item['price'],
                     'subtotal' => (string) $item['subtotal'],
+                    'gst_rate' => (int) ($item['gst_rate'] ?? 0),
+                    'gst_amount' => (string) ($item['gst_amount'] ?? '0.00'),
                 ],
                 $this->items
             ),
@@ -119,6 +142,8 @@ final class OrderReceipt
                     'quantity' => $item->quantity,
                     'price' => $item->price,
                     'subtotal' => $item->subtotal,
+                    'gst_rate' => $item->gst_rate ?? 0,
+                    'gst_amount' => $item->gst_amount ?? '0.00',
                 ])
                 ->all(),
             totalAmount: (string) $order->total_amount,
@@ -130,6 +155,15 @@ final class OrderReceipt
             paymentMode: $order->payment_mode,
             placedAt: $order->created_at?->format('d M Y, h:i A') ?? now()->format('d M Y, h:i A'),
             cashierName: $cashierName,
+            subtotal: (string) ($order->subtotal ?? $order->total_amount),
+            discountAmount: (string) ($order->discount_amount ?? '0.00'),
+            taxAmount: (string) ($order->tax_amount ?? '0.00'),
+            roundOff: (string) ($order->round_off ?? '0.00'),
+            orderType: $order->order_type,
+            paymentStatus: $order->payment_status,
+            upiRef: $order->upi_ref,
+            customerName: $order->customer_name,
+            customerPhone: $order->customer_phone,
         );
     }
 }

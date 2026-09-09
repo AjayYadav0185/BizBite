@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Enums\FoodType;
 use App\Models\Scopes\StoreScope;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,6 +12,8 @@ use Illuminate\Database\Eloquent\Model;
 class FoodItem extends Model
 {
     use HasFactory;
+
+    protected $table = 'tbl_food_items';
     /**
      * The attributes that are mass assignable.
      *
@@ -22,6 +25,10 @@ class FoodItem extends Model
         'name',
         'price',
         'is_available',
+        'food_type',
+        'gst_rate',
+        'sort_order',
+        'uuid',
     ];
 
     /**
@@ -34,6 +41,9 @@ class FoodItem extends Model
         return [
             'price' => 'decimal:2',
             'is_available' => 'boolean',
+            'food_type' => FoodType::class,
+            'gst_rate' => 'integer',
+            'sort_order' => 'integer',
         ];
     }
 

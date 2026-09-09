@@ -3,10 +3,12 @@
 namespace App\Providers;
 
 use App\Models\Enums\UserRole;
+use App\Models\PersonalAccessToken;
 use App\Models\User;
 use App\Services\OrderService;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Sanctum\Sanctum;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -27,6 +29,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // All framework + business tables use the `tbl_` prefix — point
+        // Sanctum's token model at the renamed table.
+        Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
         // -------------------------------------------------------------------
         // Role Gates
         //

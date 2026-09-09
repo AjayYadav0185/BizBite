@@ -24,7 +24,18 @@ class DatabaseSeeder extends Seeder
         $store = Store::factory()->create([
             'name' => 'Apna Zaika - North Indian Food Outlet',
             'phone' => '+91 98110 45678',
+            'alternate_phone' => '+91 11 2745 8899',
             'address' => 'Shop No. 12, Main Market, Model Town, New Delhi 110009',
+            'city' => 'New Delhi',
+            'state' => 'Delhi',
+            'pincode' => '110009',
+            'gstin' => '07ABCDE1234F1Z5',
+            'fssai_license' => '10012043001234',
+            'upi_vpa' => 'apnazaika@upi',
+            'currency' => 'INR',
+            'default_gst_rate' => 5.00,
+            'is_gst_enabled' => false,
+            'is_active' => true,
             'print_header' => 'APNA ZAIKA - SWAD DESI TADKE KA',
             'print_footer' => 'Shukriya! Phir Padhariye! Visit Again!',
         ]);
@@ -33,6 +44,7 @@ class DatabaseSeeder extends Seeder
             'store_id' => $store->id,
             'name' => 'Rajesh Sharma',
             'email' => 'admin@mail.com',
+            'phone' => '+91 98110 45678',
             'password' => 'password',
             'role' => UserRole::Admin,
         ]);
@@ -41,12 +53,13 @@ class DatabaseSeeder extends Seeder
             'store_id' => $store->id,
             'name' => 'Priya Verma',
             'email' => 'cashier@mail.com',
+            'phone' => '+91 98990 12345',
             'password' => 'password',
             'role' => UserRole::Cashier,
         ]);
 
         /**
-         * Category => [[item name, price in INR], ...]
+         * Category => [[item name, price in INR, food_type], ...]
          * Prices are typical North Indian dhaba / QSR rates.
          */
         $menu = [
@@ -126,20 +139,30 @@ class DatabaseSeeder extends Seeder
             ],
         ];
 
+        $sortOrder = 0;
         foreach ($menu as $categoryName => $items) {
             $category = Category::create([
                 'store_id' => $store->id,
                 'name' => $categoryName,
                 'is_active' => true,
+                'sort_order' => $sortOrder++,
+                'uuid' => (string) \Illuminate\Support\Str::uuid(),
             ]);
 
-            foreach ($items as [$itemName, $price]) {
+            $itemSort = 0;
+            foreach ($items as $itemRow) {
+                [$itemName, $price] = $itemRow;
+                $foodType = $itemRow[2] ?? 'veg';
                 FoodItem::create([
                     'store_id' => $store->id,
                     'category_id' => $category->id,
                     'name' => $itemName,
                     'price' => $price,
                     'is_available' => true,
+                    'food_type' => $foodType,
+                    'gst_rate' => 5,
+                    'sort_order' => $itemSort++,
+                    'uuid' => (string) \Illuminate\Support\Str::uuid(),
                 ]);
             }
         }

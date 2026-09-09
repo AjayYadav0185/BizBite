@@ -7,4 +7,6 @@ enum PaymentMode: string
     case Cash = 'cash';
     case Upi = 'upi';
     case Card = 'card';
+    case Credit = 'credit';
+    case Split = 'split';
 }

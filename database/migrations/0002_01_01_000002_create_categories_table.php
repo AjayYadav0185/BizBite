@@ -11,13 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('categories', function (Blueprint $table) {
+        Schema::create('tbl_categories', function (Blueprint $table) {
             $table->id();
             $table->foreignId('store_id')->index()->constrained(
-                table: 'stores'
+                table: 'tbl_stores'
             )->cascadeOnDelete();
             $table->string('name');
             $table->boolean('is_active')->default(true)->index();
+            // Flutter Phase 2: stable ordering + offline sync (client uses uuid; server maps to id).
+            $table->unsignedInteger('sort_order')->default(0)->index();
+            $table->uuid('uuid')->nullable()->unique();
             $table->timestamps();
 
             $table->index(['store_id', 'name']);
@@ -29,6 +32,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('categories');
+        Schema::dropIfExists('tbl_categories');
     }
 };

@@ -16,6 +16,9 @@ use Illuminate\Database\Eloquent\Model;
 class OrderItem extends Model
 {
     use HasFactory;
+
+    protected $table = 'tbl_order_items';
+
     /**
      * The attributes that are mass assignable.
      *
@@ -23,10 +26,14 @@ class OrderItem extends Model
      */
     protected $fillable = [
         'order_id',
+        'food_item_id',
         'food_item_name',
         'quantity',
         'price',
         'subtotal',
+        'discount_amount',
+        'gst_rate',
+        'gst_amount',
     ];
 
     /**
@@ -40,6 +47,9 @@ class OrderItem extends Model
             'quantity' => 'integer',
             'price' => 'decimal:2',
             'subtotal' => 'decimal:2',
+            'discount_amount' => 'decimal:2',
+            'gst_rate' => 'integer',
+            'gst_amount' => 'decimal:2',
         ];
     }
 

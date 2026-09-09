@@ -8,6 +8,12 @@ use Illuminate\Database\Eloquent\Model;
 class Store extends Model
 {
     use HasFactory;
+
+    /**
+     * Every business + framework table uses the `tbl_` prefix.
+     */
+    protected $table = 'tbl_stores';
+
     /**
      * The attributes that are mass assignable.
      *
@@ -16,10 +22,37 @@ class Store extends Model
     protected $fillable = [
         'name',
         'phone',
+        'alternate_phone',
         'address',
+        'city',
+        'state',
+        'pincode',
+        'gstin',
+        'fssai_license',
+        'upi_vpa',
+        'currency',
+        'default_gst_rate',
+        'is_gst_enabled',
+        'is_active',
         'print_header',
         'print_footer',
+        'logo_path',
+        'owner_user_id',
     ];
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'default_gst_rate' => 'decimal:2',
+            'is_gst_enabled' => 'boolean',
+            'is_active' => 'boolean',
+        ];
+    }
 
     /**
      * Get the users that belong to the store.
@@ -59,5 +92,25 @@ class Store extends Model
     public function orders()
     {
         return $this->hasMany(Order::class);
+    }
+
+    /**
+     * Get the registered Flutter/POS devices for the store.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\StoreDevice>
+     */
+    public function devices()
+    {
+        return $this->hasMany(StoreDevice::class);
+    }
+
+    /**
+     * Get the payments collected for the store.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Payment>
+     */
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
     }
 }

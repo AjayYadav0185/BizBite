@@ -26,7 +26,11 @@ final class OrderApiController extends Controller
      * Save an order placed from the Flutter app.
      *
      * Body (both shapes accepted — the controller normalizes them):
-     *   { "payment_mode": "cash",
+     *   { "payment_mode": "upi", "order_type": "takeaway",
+     *     "discount_amount": "20.00",
+     *     "customer_name": "Amit", "customer_phone": "98110XXXXX",
+     *     "upi_ref": "UTR / UPI txn id",
+     *     "idempotency_key": "client-generated uuid (safe to retry)",
      *     "items": [{ "id": 12, "quantity": 2 }]            // mobile alias
      *     "items": [{ "food_item_id": 12, "quantity": 2 }]  // canonical
      *   }
@@ -51,7 +55,13 @@ final class OrderApiController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.food_item_id' => ['required', 'integer'],
             'items.*.quantity' => ['integer', 'min:1'],
-            'payment_mode' => ['in:cash,upi,card'],
+            'payment_mode' => ['in:cash,upi,card,credit,split'],
+            'order_type' => ['in:dine_in,takeaway,parcel,delivery'],
+            'discount_amount' => ['numeric', 'min:0'],
+            'customer_name' => ['nullable', 'string', 'max:80'],
+            'customer_phone' => ['nullable', 'string', 'max:15'],
+            'upi_ref' => ['nullable', 'string', 'max:60'],
+            'idempotency_key' => ['nullable', 'string', 'max:64'],
         ]);
 
         try {

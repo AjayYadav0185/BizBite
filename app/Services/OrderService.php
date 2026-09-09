@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\Enums\OrderStatus;
+use App\Models\Enums\OrderType;
 use App\Models\Enums\PaymentMode;
+use App\Models\Enums\PaymentStatus;
 use App\Models\FoodItem;
 use App\Models\Order;
 use App\Models\User;
@@ -18,19 +20,21 @@ use Throwable;
  *
  * Both the Staff POS Livewire component (Phase 1) and the Sanctum
  * OrderApiController consumed by the Flutter app (Phase 2) inject and call
- * this exact service, which guarantees that bill numbering, price
- * snapshotting and tenant isolation behave identically on every surface.
+ * this exact service, which guarantees that bill numbering, GST math,
+ * price snapshotting and tenant isolation behave identically on every surface.
  *
  * Guarantees:
  *   - All persistence happens inside ONE database transaction; a failure
  *     rolls back the order AND all of its snapshot rows atomically.
  *   - Client supplied totals are NEVER trusted: every price is re-read from
- *     the `food_items` table and the grand total recomputed server side.
+ *     the `tbl_food_items` table and the grand total recomputed server side.
  *   - Cross-tenant attacks are structurally impossible: FoodItem carries the
  *     global StoreScope, so item ids from another store resolve to nothing.
  *   - Bill numbers are per-store, per-day sequences guarded by the
- *     `orders.store_id + order_number` unique index with retry-on-collision
+ *     `tbl_orders.store_id + order_number` unique index with retry-on-collision
  *     to stay safe under concurrent cashier/Flutter traffic.
+ *   - Flutter retries are idempotent: pass `idempotency_key` and a replay
+ *     returns the original receipt instead of creating a duplicate bill.
  */
 final class OrderService
 {
@@ -40,8 +44,13 @@ final class OrderService
      * @param  User  $user  The authenticated cashier or admin.
      * @param  array<string, mixed>  $payload  Normalized cart payload:
      *                                         [
-     *                                         'items'        => [['food_item_id' => 1, 'quantity' => 2], ...],
-     *                                         'payment_mode' => 'cash'|'upi'|'card',
+     *                                         'items'           => [['food_item_id' => 1, 'quantity' => 2], ...],
+     *                                         'payment_mode'    => 'cash'|'upi'|'card'|'credit'|'split',
+     *                                         'order_type'      => 'dine_in'|'takeaway'|'parcel'|'delivery',
+     *                                         'discount_amount' => '20.00',
+     *                                         'customer_name'   => '...', 'customer_phone' => '98...',
+     *                                         'upi_ref'         => 'UPI txn / UTR',
+     *                                         'idempotency_key' => 'client uuid (Flutter offline retry)',
      *                                         ]
      * @return OrderReceipt Immutable receipt for printing/JSON.
      *
@@ -49,9 +58,13 @@ final class OrderService
      */
     public function place(User $user, array $payload): OrderReceipt
     {
-        $paymentMode = PaymentMode::from(
+        $paymentMode = PaymentMode::tryFrom(
             (string) ($payload['payment_mode'] ?? PaymentMode::Cash->value)
-        );
+        ) ?? PaymentMode::Cash;
+
+        $orderType = OrderType::tryFrom(
+            (string) ($payload['order_type'] ?? OrderType::Takeaway->value)
+        ) ?? OrderType::Takeaway;
 
         $lineItems = $this->normalizeLineItems($payload['items'] ?? []);
 
@@ -62,9 +75,35 @@ final class OrderService
         try {
             // A transaction (plus retries on bill-number contention) keeps
             // order + snapshots atomic and safe for parallel cashiers.
-            $receipt = DB::transaction(function () use ($user, $lineItems, $paymentMode): OrderReceipt {
+            $receipt = DB::transaction(function () use ($user, $lineItems, $paymentMode, $orderType, $payload): OrderReceipt {
                 $store = $user->store()->lockForUpdate()->first();
                 $storeId = (int) $store->id;
+
+                // Idempotency for Flutter offline retries: a replayed key returns
+                // the original receipt instead of minting a duplicate bill.
+                $idempotencyKey = isset($payload['idempotency_key']) && is_string($payload['idempotency_key']) && trim($payload['idempotency_key']) !== ''
+                    ? substr(trim($payload['idempotency_key']), 0, 64)
+                    : null;
+
+                if ($idempotencyKey !== null) {
+                    $existing = Order::query()->withoutGlobalScopes()
+                        ->where('store_id', $storeId)
+                        ->where('idempotency_key', $idempotencyKey)
+                        ->with('items')
+                        ->first();
+
+                    if ($existing !== null) {
+                        return OrderReceipt::fromOrder(
+                            order: $existing,
+                            storeName: $store->name,
+                            storePhone: $store->phone,
+                            storeAddress: $store->address,
+                            printHeader: $store->print_header,
+                            printFooter: $store->print_footer,
+                            cashierName: $user->name,
+                        );
+                    }
+                }
 
                 // ---------------------------------------------------------
                 // SERVER-SIDE PRICE SNAPSHOT
@@ -90,7 +129,8 @@ final class OrderService
                     throw OrderPlacementException::unavailableItems($rejected);
                 }
 
-                $totalAmount = '0';
+                $subtotalAmount = '0';
+                $taxAmount = '0';
                 $snapshotRows = [];
 
                 foreach ($lineItems as $line) {
@@ -99,30 +139,89 @@ final class OrderService
 
                     $quantity = $line['quantity'];
                     $unitPrice = (string) $foodItem->price;
-                    $subtotal = bcmul($unitPrice, (string) $quantity, 2);
-                    $totalAmount = bcadd($totalAmount, $subtotal, 2);
+                    $lineSubtotal = bcmul($unitPrice, (string) $quantity, 2);
+                    $subtotalAmount = bcadd($subtotalAmount, $lineSubtotal, 2);
+
+                    // GST per line (inclusive-price math kept simple for dhabas/QSRs):
+                    // gst = line_total * rate / (100 + rate), rounded to 2dp.
+                    $gstRate = (int) ($foodItem->gst_rate ?? 5);
+                    $lineGst = $gstRate > 0
+                        ? bcdiv(bcmul($lineSubtotal, (string) $gstRate, 4), (string) (100 + $gstRate), 2)
+                        : '0.00';
+                    $taxAmount = bcadd($taxAmount, $lineGst, 2);
 
                     $snapshotRows[] = [
+                        'food_item_id' => $foodItem->id,
                         'food_item_name' => $foodItem->name,
                         'quantity' => $quantity,
                         'price' => $unitPrice,
-                        'subtotal' => $subtotal,
+                        'subtotal' => $lineSubtotal,
+                        'discount_amount' => '0.00',
+                        'gst_rate' => $gstRate,
+                        'gst_amount' => $lineGst,
                     ];
                 }
 
+                // Flat bill-level discount (never below zero), then round-off to the rupee.
+                $discountAmount = '0.00';
+                if (isset($payload['discount_amount']) && is_numeric($payload['discount_amount'])) {
+                    $discountAmount = number_format(max((float) $payload['discount_amount'], 0), 2, '.', '');
+                    if (bccomp($discountAmount, $subtotalAmount, 2) > 0) {
+                        $discountAmount = $subtotalAmount;
+                    }
+                }
+
+                $afterDiscount = bcsub($subtotalAmount, $discountAmount, 2);
+                // Tax stays proportional after discount.
+                if (bccomp($subtotalAmount, '0', 2) > 0 && bccomp($discountAmount, '0', 2) > 0) {
+                    $taxAmount = bcdiv(bcmul($taxAmount, $afterDiscount, 4), $subtotalAmount, 2);
+                }
+                $grandTotal = bcadd($afterDiscount, '0', 2);
+                // Indian cash rounding: nearest rupee (UPI keeps paise — see receipt).
+                $rounded = (string) round((float) $grandTotal);
+                $roundOff = bcsub($rounded, $grandTotal, 2);
+
+                $customerName = isset($payload['customer_name']) && is_string($payload['customer_name'])
+                    ? substr(trim($payload['customer_name']), 0, 80) ?: null
+                    : null;
+                $customerPhone = isset($payload['customer_phone']) && is_string($payload['customer_phone'])
+                    ? preg_replace('/[^\d+]/', '', substr(trim($payload['customer_phone']), 0, 15)) ?: null
+                    : null;
+                $upiRef = isset($payload['upi_ref']) && is_string($payload['upi_ref'])
+                    ? substr(trim($payload['upi_ref']), 0, 60) ?: null
+                    : null;
+
                 // ---------------------------------------------------------
-                // COMMIT: order header + immutable snapshot rows.
+                // COMMIT: order header + immutable snapshot rows + payment leg.
                 // ---------------------------------------------------------
                 $order = Order::create([
                     'store_id' => $storeId,
                     'user_id' => $user->id,
                     'order_number' => $this->generateOrderNumber($storeId),
-                    'total_amount' => $totalAmount,
+                    'subtotal' => $subtotalAmount,
+                    'discount_amount' => $discountAmount,
+                    'tax_amount' => $taxAmount,
+                    'round_off' => $roundOff,
+                    'total_amount' => $rounded,
                     'payment_mode' => $paymentMode,
+                    'payment_status' => PaymentStatus::Paid,
                     'status' => OrderStatus::Completed,
+                    'order_type' => $orderType,
+                    'upi_ref' => $paymentMode === PaymentMode::Upi ? $upiRef : null,
+                    'customer_name' => $customerName,
+                    'customer_phone' => $customerPhone,
+                    'idempotency_key' => $idempotencyKey,
                 ]);
 
                 $order->items()->createMany($snapshotRows);
+                $order->payments()->create([
+                    'store_id' => $storeId,
+                    'mode' => $paymentMode->value,
+                    'amount' => $rounded,
+                    'status' => 'success',
+                    'upi_ref' => $paymentMode === PaymentMode::Upi ? $upiRef : null,
+                    'paid_at' => now(),
+                ]);
                 $order->setRelation('items', $order->items()->get());
 
                 return OrderReceipt::fromOrder(
@@ -186,7 +285,7 @@ final class OrderService
      *
      * Runs inside the caller's transaction with a row-level lock held on the
      * store, so two cashiers can never receive the same number; the unique
-     * composite index `orders.store_id + order_number` is the final safety
+     * composite index `tbl_orders.store_id + order_number` is the final safety
      * net and the transaction's attempts:3 above retries on the rare race.
      */
     private function generateOrderNumber(int $storeId): string

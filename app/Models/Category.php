@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Model;
 class Category extends Model
 {
     use HasFactory;
+
+    protected $table = 'tbl_categories';
     /**
      * The attributes that are mass assignable.
      *
@@ -20,6 +22,8 @@ class Category extends Model
         'store_id',
         'name',
         'is_active',
+        'sort_order',
+        'uuid',
     ];
 
     /**
