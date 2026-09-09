@@ -63,7 +63,11 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www
 
-# 4. PHP dependencies (only re-run when composer files change)
+# 4. PHP dependencies (only re-run when composer files change).
+#    NOTE: fakerphp/faker is a REGULAR dependency (composer.json "require"),
+#    not require-dev, because the entrypoint seeds demo data with Eloquent
+#    factories on every boot — and Laravel's Factory always needs Faker.
+#    Installing with --no-dev used to throw: Class "Faker\Factory" not found.
 COPY composer.json composer.lock ./
 RUN composer install \
         --no-dev \
