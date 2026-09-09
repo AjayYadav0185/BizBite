@@ -9,6 +9,14 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  exclude:
+    # Vendored copy of blue_thermal_printer (upstream-unmaintained, patched
+    # only for Android AGP compatibility). Do not lint vendored code —
+    # its style lints (SCREAMING_CAPS constants, unnecessary_const, etc.)
+    # come from upstream and must stay diff-able against the original.
+    - third_party/**
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`
