@@ -23,6 +23,16 @@ if [ "$DB_CONN" = "sqlite" ]; then
     touch "$DB_DATABASE"
 fi
 
+# ---- APP_URL ------------------------------------------------------------------
+# @vite generates ABSOLUTE asset URLs from APP_URL (default: http://localhost).
+# Without the correct URL the browser tries to load CSS/JS from localhost and
+# they appear "missing". Render injects RENDER_EXTERNAL_URL automatically, so
+# use it whenever APP_URL is not explicitly set in the dashboard.
+if [ -z "$APP_URL" ] && [ -n "$RENDER_EXTERNAL_URL" ]; then
+    export APP_URL="$RENDER_EXTERNAL_URL"
+    echo "APP_URL not set - using RENDER_EXTERNAL_URL: $APP_URL"
+fi
+
 # ---- APP_KEY -----------------------------------------------------------------
 # Prefer setting APP_KEY in the Render dashboard. If it is missing, generate an
 # ephemeral one so the app still boots (it changes on restart, so encrypted

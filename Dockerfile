@@ -3,9 +3,10 @@ FROM node:22-alpine AS frontend
 
 WORKDIR /app
 
-# Node dependencies (only re-run when package.json changes)
-COPY package.json ./
-RUN npm install --no-audit --no-fund
+# Node dependencies (only re-run when the lockfile changes; npm ci is
+# deterministic — installs exactly what package-lock.json pins)
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
 
 # Source files required by Vite/Tailwind (public/build is excluded from the
 # build context via .dockerignore, so this always produces a fresh build)
