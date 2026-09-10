@@ -6,6 +6,7 @@ import '../../features/orders/cart_controller.dart';
 import '../../features/orders/data/models/order_models.dart';
 import '../theme/bizbite_theme.dart';
 import '../widgets/amount.dart';
+import '../widgets/category_visuals.dart';
 import '../widgets/status_banner.dart';
 
 /// Screen 1 — Home Dashboard / Quick Order Grid (the "menu" half of the POS).
@@ -36,45 +37,6 @@ class MenuPane extends StatelessWidget {
   final int? activeCategoryId;
   final void Function(String value)? onSearchChanged;
   final void Function(int? categoryId)? onCategoryTap;
-
-  /// Warm thumbnail hues, indexed by category id so each food family keeps
-  /// a stable, appetizing color across sessions.
-  static const _thumbFills = [
-    Color(0xFFFFF3E0), // warm cream
-    Color(0xFFFFEBEE), // soft rose
-    Color(0xFFE8F5E9), // mint cream
-    Color(0xFFFFF8E1), // butter
-    Color(0xFFEDE7F6), // lavender
-    Color(0xFFE0F7FA), // aqua
-  ];
-
-  static const _thumbInks = [
-    Color(0xFFBF360C),
-    Color(0xFFAD1457),
-    Color(0xFF2E7D32),
-    Color(0xFFEF6C00),
-    Color(0xFF4527A0),
-    Color(0xFF00838F),
-  ];
-
-  /// Maps a category/item name to a recognizable glyph (keyword heuristics).
-  static IconData _categoryIcon(String name) {
-    final key = name.toLowerCase();
-    if (key.contains('bever') || key.contains('drink') || key.contains('chai')) {
-      return Icons.local_cafe_rounded;
-    }
-    if (key.contains('dessert') || key.contains('sweet') || key.contains('ice')) {
-      return Icons.icecream_rounded;
-    }
-    if (key.contains('fast') || key.contains('burger') || key.contains('pizza')) {
-      return Icons.fastfood_rounded;
-    }
-    if (key.contains('snack')) return Icons.cookie_rounded;
-    if (key.contains('main') || key.contains('thali') || key.contains('meal')) {
-      return Icons.dinner_dining_rounded;
-    }
-    return Icons.restaurant_menu_rounded;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -191,10 +153,9 @@ class MenuPane extends StatelessWidget {
                         return _ItemCard(
                           item: item,
                           quantityInCart: qtyInCart,
-                          icon: _categoryIcon(item.name),
-                          fill:
-                              _thumbFills[item.categoryId % _thumbFills.length],
-                          ink: _thumbInks[item.categoryId % _thumbInks.length],
+                          icon: categoryIcon(item.name),
+                          fill: categoryFill(item.categoryId),
+                          ink: categoryInk(item.categoryId),
                           onTap: () => cart.add(item),
                         );
                       },
@@ -316,7 +277,7 @@ class MenuPane extends StatelessWidget {
           label: category.name,
           selected: activeCategoryId == category.id,
           onTap: () => onCategoryTap?.call(category.id),
-          icon: _categoryIcon(category.name),
+          icon: categoryIcon(category.name),
         ),
       );
     }
