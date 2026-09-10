@@ -127,13 +127,17 @@ void main() {
   });
 
   test('AppColors exposes the spec single-source tokens', () {
-    expect(AppColors.primary, const Color(0xFF4F46E5));
-    expect(AppColors.background, const Color(0xFFF7F8FB));
-    expect(AppColors.success, const Color(0xFF22C55E));
-    expect(AppColors.error, const Color(0xFFD92D20));
+    expect(AppColors.primary, const Color(0xFF10B981)); // emerald-500
+    expect(AppColors.primaryDark, const Color(0xFF34D399)); // emerald-400
+    expect(AppColors.primarySoft, const Color(0xFF059669)); // emerald-600
+    expect(AppColors.background, const Color(0xFFF5F7F6));
+    expect(AppColors.inkDark, const Color(0xFF020617)); // slate-950
+    expect(AppColors.success, const Color(0xFF10B981));
+    expect(AppColors.error, const Color(0xFFEF4444)); // red-500
     expect(AppSpacing.md, 12);
     expect(AppRadius.lg, 16);
     expect(AppRadius.full, 999);
+    expect(AppGradients.brandMain.colors.length, 2);
     expect(AppGradients.page.colors.length, 3);
   });
 

@@ -10,21 +10,21 @@ import '../theme/bizbite_theme.dart';
 /// (spec §3) so a re-skin in `bizbite_theme.dart` flows through here too.
 
 const List<Color> categoryThumbFills = [
-  AppColors.infoBg, // brand tint
-  Color(0xFFFFEBEE), // soft rose
-  AppColors.successBg, // mint cream
-  AppColors.warningBg, // butter
-  Color(0xFFEDE7F6), // lavender
-  Color(0xFFE0F7FA), // aqua
+  AppColors.infoBg, // emerald wash
+  Color(0xFFFDEBDD), // peach
+  Color(0xFFFBE7E9), // soft rose
+  Color(0xFFFFF3D6), // butter
+  Color(0xFFF0EDF7), // lavender
+  Color(0xFFEAF6F4), // mint aqua
 ];
 
 const List<Color> categoryThumbInks = [
-  AppColors.primary,
-  Color(0xFFAD1457),
-  AppColors.successDeep,
-  AppColors.warningDeep,
+  AppColors.primary, // emerald-500
+  Color(0xFFE8590C), // deep orange (food)
+  Color(0xFFC41E2A), // chilli red
+  Color(0xFFB7791F), // amber-700 (sweet)
   AppColors.purple,
-  AppColors.infoCyan,
+  Color(0xFF0E7C7B), // deep teal
 ];
 
 Color categoryFill(int categoryId) =>

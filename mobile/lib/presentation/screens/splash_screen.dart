@@ -44,7 +44,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 height: 72,
                 width: 72,
                 decoration: const BoxDecoration(
-                    gradient: AppGradients.brandIndigo,
+                    gradient: AppGradients.brandMain,
                     shape: BoxShape.circle),
                 child: const Icon(Icons.storefront_rounded,
                     size: 36, color: Colors.white),

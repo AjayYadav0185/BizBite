@@ -8,54 +8,71 @@ import 'package:shared_preferences/shared_preferences.dart';
 // ============================================================
 
 /// Spec §3 — color tokens. Never hardcode hex elsewhere.
+///
+/// Brand language mirrors the BizBite web POS (Laravel console): a fresh
+/// food-outlet **emerald green** over **charcoal slate**, warm amber
+/// warnings and red errors — so the till and the console feel like one
+/// system. Light mode keeps the same emerald identity on soft green-grey
+/// surfaces; dark mode matches the console's slate-950/900 cards.
 abstract final class AppColors {
-  static const Color primary = Color(0xFF4F46E5);
-  static const Color primaryDark = Color(0xFF818CF8);
-  static const Color primaryLight = Color(0xFF3366FF);
-  static const Color primarySoft = Color(0xFF2563EB);
-  static const Color accentBlue = Color(0xFF2F6FED);
-  static const Color skyBlue = Color(0xFF00A3FF);
-  static const Color purple = Color(0xFF8A4FDB);
-  static const Color infoBg = Color(0xFFF0F4FF);
-  static const Color accentSoft = Color(0xFF93C5FD);
-  static const Color primaryDeep = Color(0xFF3730A3);
-  static const Color ink = Color(0xFF14151F);
-  static const Color inkDark = Color(0xFF0F172A);
-  static const Color muted = Color(0xFF9AA1AC);
-  static const Color faintMuted = Color(0xFFB8BEC9);
+  // --- Brand: emerald (web POS emerald-500 CTA & success flash) ----------
+  static const Color primary = Color(0xFF10B981); // emerald-500
+  static const Color primaryDark = Color(0xFF34D399); // emerald-400 (dark)
+  static const Color primaryLight = Color(0xFF34D399); // emerald-400 (bright)
+  static const Color primarySoft = Color(0xFF059669); // emerald-600 (deep)
+  static const Color accentTeal = Color(0xFF14B8A6); // teal-500 tertiary
+  static const Color skyTeal = Color(0xFF0D9488); // teal-600 pop accent
+  static const Color purple = Color(0xFF8A4FDB); // violet-500 (menu variety)
+  static const Color infoBg = Color(0xFFECFDF5); // emerald-50 brand wash
+  static const Color accentSoft = Color(0xFF6EE7B7); // emerald-300 (dark)
+  static const Color primaryDeep = Color(0xFF047857); // emerald-700 deepest
+
+  // --- Ink / text: web slate scale -----------------------------------------
+  static const Color ink = Color(0xFF0F172A); // slate-900
+  static const Color inkDark = Color(0xFF020617); // slate-950
+  static const Color muted = Color(0xFF64748B); // slate-500 light secondary
+  static const Color faintMuted = Color(0xFF94A3B8); // slate-400 dark secondary
   static const Color slate700 = Color(0xFF334155);
   static const Color slate600 = Color(0xFF475569);
   static const Color slate500 = Color(0xFF64748B);
   static const Color slate400 = Color(0xFF94A3B8);
   static const Color slate800 = Color(0xFF1E293B);
-  static const Color background = Color(0xFFF7F8FB);
+
+  // --- Surfaces -------------------------------------------------------------
+  static const Color background = Color(0xFFF5F7F6); // soft green-white canvas
   static const Color surface = Color(0xFFFFFFFF);
-  static const Color surfaceMuted = Color(0xFFF3F4F6);
-  static const Color surfaceSoft = Color(0xFFF8F9FA);
-  static const Color surfaceSoft2 = Color(0xFFF5F6FA);
-  static const Color surfaceSubtle = Color(0xFFF0F1F4);
-  static const Color gradientStart = Color(0xFFF4F7FC);
-  static const Color gradientMid = Color(0xFFE9EDF5);
-  static const Color gradientEnd = Color(0xFFE3E8F3);
-  static const Color darkSurface = Color(0xFF2A2D3A);
-  static const Color border = Color(0xFFE2E5EA);
-  static const Color borderLight = Color(0xFFE2E8F0);
-  static const Color borderMuted = Color(0xFFCBD5E1);
-  static const Color success = Color(0xFF22C55E);
-  static const Color successDeep = Color(0xFF16A34A);
+  static const Color surfaceMuted = Color(0xFFF0F3F1);
+  static const Color surfaceSoft = Color(0xFFF8FAF8);
+  static const Color surfaceSoft2 = Color(0xFFF1F4F2);
+  static const Color surfaceSubtle = Color(0xFFEBEFED);
+  static const Color gradientStart = Color(0xFFF2F6F4);
+  static const Color gradientMid = Color(0xFFE6EDE8);
+  static const Color gradientEnd = Color(0xFFDCE5DF);
+  static const Color darkSurface = Color(0xFF1E293B); // slate-800
+  static const Color border = Color(0xFFE1E7E3);
+  static const Color borderLight = Color(0xFFE2E8E4);
+  static const Color borderMuted = Color(0xFFCBD5E1); // slate-300
+
+  // --- Status -----------------------------------------------------------------
+  static const Color success = Color(0xFF10B981); // emerald-500 = paid
+  static const Color successDeep = Color(0xFF059669); // emerald-600
   static const Color successAlt = Color(0xFF34A853);
-  static const Color successBg = Color(0xFFE6F4EA);
-  static const Color warning = Color(0xFFFF8C42);
+  static const Color successBg = Color(0xFFECFDF5); // emerald-50
+  static const Color warning = Color(0xFFFF8C42); // warm food orange
   static const Color warningDeep = Color(0xFFFF6D00);
-  static const Color warningBg = Color(0xFFFEF9C3);
-  static const Color error = Color(0xFFD92D20);
-  static const Color errorAlt = Color(0xFFEF4444);
-  static const Color errorDeep = Color(0xFFDC2626);
-  static const Color errorBg = Color(0xFFFDECEC);
+  static const Color warningBg = Color(0xFFFFF3E8); // orange-50
+  static const Color error = Color(0xFFEF4444); // red-500
+  static const Color errorAlt = Color(0xFFF87171); // red-400
+  static const Color errorDeep = Color(0xFFDC2626); // red-600
+  static const Color errorBg = Color(0xFFFEF2F2); // red-50
   static const Color infoCyan = Color(0xFF17A8C4);
   static const Color whatsapp = Color(0xFF25D366);
-  static const Color bgDark = Color(0xFF14151F);
-  static const Color cardDark = Color(0xFF1E222B);
+
+  // --- Dark mode (charcoal, mirrors web slate-950/900/800) -------------------
+  static const Color bgDark = Color(0xFF020617); // slate-950
+  static const Color cardDark = Color(0xFF0F172A); // slate-900
+
+  // --- Thermal paper -----------------------------------------------------------
   static const Color paperInk = Color(0xFF26221E);
   static const Color paperMuted = Color(0xFF8A857F);
   static const Color printerBed = Color(0xFF161310);
@@ -100,7 +117,7 @@ abstract final class AppShadows {
       ];
 }
 
-/// Spec §5 — gradients (page backdrop + brand-dark tiles).
+/// Spec §5 — gradients (page backdrop + brand tiles).
 abstract final class AppGradients {
   static const LinearGradient page = LinearGradient(
     begin: Alignment.topCenter,
@@ -111,12 +128,15 @@ abstract final class AppGradients {
       AppColors.gradientEnd,
     ],
   );
+  /// Charcoal brand tile — store hero, dark panels.
   static const LinearGradient brand = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [AppColors.ink, AppColors.darkSurface],
   );
-  static const LinearGradient brandIndigo = LinearGradient(
+  /// Emerald brand tile — the food-outlet signature (login/splash logo,
+  /// app-bar badge), matching the web POS emerald → deep-green CTA.
+  static const LinearGradient brandMain = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [AppColors.primary, AppColors.primarySoft],
@@ -126,20 +146,20 @@ abstract final class AppGradients {
 /// BizBite POS design system — ThemeData + legacy aliases.
 abstract final class BizBiteTheme {
   // --- Brand (legacy aliases → AppColors §3) --------------------------------
-  /// Deep Amber legacy alias — now indigo primary per spec.
+  /// Food-outlet emerald primary — matches the web POS emerald-500 CTA.
   static const Color brand = AppColors.primary;
 
-  /// Darker emphasis legacy alias — now primarySoft per spec.
+  /// Darker emphasis legacy alias — now primarySoft (emerald-600).
   static const Color brandDeep = AppColors.primarySoft;
 
-  /// Soft wash legacy alias — now infoBg per spec.
+  /// Soft wash legacy alias — now infoBg (emerald-50).
   static const Color brandSoft = AppColors.infoBg;
 
   // --- Neutrals (legacy aliases → AppColors §3) ------------------------------
   /// Soft off-white app canvas.
   static const Color canvas = AppColors.background;
 
-  /// Warm dark ink legacy alias — now spec ink per §3.
+  /// Slate-900 ink legacy alias — now spec ink per §3.
   static const Color inkDark = AppColors.ink;
 
   /// Muted label grey.
@@ -180,7 +200,7 @@ abstract final class BizBiteTheme {
     final scheme = ColorScheme.fromSeed(seedColor: AppColors.primary).copyWith(
       brightness: brightness,
       primary: darkMode ? AppColors.primaryDark : AppColors.primary,
-      onPrimary: Colors.white,
+      onPrimary: AppColors.inkDark, // web POS: dark slate text on emerald CTA
       primaryContainer: AppColors.infoBg,
       onPrimaryContainer: AppColors.ink,
       secondary: AppColors.primarySoft,
@@ -203,7 +223,7 @@ abstract final class BizBiteTheme {
       onError: Colors.white,
       errorContainer: AppColors.errorBg,
       onErrorContainer: AppColors.error,
-      tertiary: AppColors.accentBlue,
+      tertiary: AppColors.accentTeal,
       tertiaryContainer: AppColors.infoBg,
     );
 
@@ -522,7 +542,7 @@ class BizAppBar extends StatelessWidget implements PreferredSizeWidget {
               width: 34,
               height: 34,
               decoration: const BoxDecoration(
-                  gradient: AppGradients.brandIndigo, shape: BoxShape.circle),
+                  gradient: AppGradients.brandMain, shape: BoxShape.circle),
               child: const Icon(Icons.storefront_rounded,
                   color: Colors.white, size: 18),
             ),
@@ -630,7 +650,7 @@ class AuthBrandHeader extends StatelessWidget {
         height: 64,
         width: 64,
         decoration: const BoxDecoration(
-            gradient: AppGradients.brandIndigo, shape: BoxShape.circle),
+            gradient: AppGradients.brandMain, shape: BoxShape.circle),
         child: const Icon(Icons.storefront_rounded,
             color: Colors.white, size: 30),
       ),
