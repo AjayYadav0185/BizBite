@@ -14,7 +14,15 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        $middleware->use([
+        // NOTE: do NOT use $middleware->use([...]) here — it REPLACES the
+        // entire Laravel 11 global stack (TrustProxies, HandleCors,
+        // PreventRequestsDuringMaintenance, ValidatePostSize, TrimStrings,
+        // ConvertEmptyStringsToNull). That silently disabled CORS, which is
+        // why Flutter Web on Chrome failed every /api/* call (OPTIONS
+        // preflight got no Access-Control-Allow-Origin headers) while
+        // Android/iOS (which ignore CORS) kept working.
+        // append() keeps the defaults and adds ours on top.
+        $middleware->append([
             SetCurrentStore::class,
         ]);
 
