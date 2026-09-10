@@ -12,7 +12,7 @@ class SyncQueueItem extends Model
 {
     use HasFactory;
 
-    protected $table = 'tbl_sync_queue';
+    protected $table = 'tbl_pos_sync_queue';
 
     protected $fillable = [
         'store_id',

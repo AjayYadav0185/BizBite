@@ -13,7 +13,7 @@ class FoodItem extends Model
 {
     use HasFactory;
 
-    protected $table = 'tbl_food_items';
+    protected $table = 'tbl_pos_food_items';
     /**
      * The attributes that are mass assignable.
      *

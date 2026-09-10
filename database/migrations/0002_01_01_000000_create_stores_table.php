@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('tbl_stores', function (Blueprint $table) {
+        Schema::create('tbl_pos_stores', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             // Indian market: 10-digit mobile with optional +91, GSTIN/FSSAI on the printed bill,
@@ -42,6 +42,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('tbl_stores');
+        Schema::dropIfExists('tbl_pos_stores');
     }
 };

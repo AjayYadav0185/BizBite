@@ -14,10 +14,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('tbl_sync_queue', function (Blueprint $table) {
+        Schema::create('tbl_pos_sync_queue', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('store_id')->index()->constrained(table: 'tbl_stores')->cascadeOnDelete();
-            $table->foreignId('user_id')->nullable()->constrained(table: 'tbl_users')->nullOnDelete();
+            $table->foreignId('store_id')->index()->constrained(table: 'tbl_pos_stores')->cascadeOnDelete();
+            $table->foreignId('user_id')->nullable()->constrained(table: 'tbl_pos_users')->nullOnDelete();
             $table->string('device_id', 100)->nullable()->index();
             // create_order | settle_payment | upsert_menu
             $table->string('action', 40)->index();
@@ -39,6 +39,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('tbl_sync_queue');
+        Schema::dropIfExists('tbl_pos_sync_queue');
     }
 };

@@ -15,6 +15,10 @@
             body * { visibility: hidden !important; }
             #thermal-receipt, #thermal-receipt * { visibility: visible !important; }
             #thermal-receipt {
+                /* #thermal-receipt is display:none on screen (Tailwind 'hidden');
+                   visibility alone cannot override display:none, so without this
+                   the 80mm roll printed BLANK. Force it visible for printing. */
+                display: block !important;
                 position: absolute !important;
                 inset: 0 !important;
                 width: 72mm !important;
@@ -25,6 +29,8 @@
                 font-family: 'Courier New', monospace !important;
                 font-size: 12px !important;
                 line-height: 1.35 !important;
+                box-shadow: none !important;
+                border: 0 !important;
             }
             @page { margin: 3mm; size: 80mm auto; }
         }
@@ -47,7 +53,10 @@
             <span class="rounded border border-slate-700 bg-slate-800 px-2 py-1 font-mono">F9</span> UPI
         </div>
 
-        <a href="{{ route('logout') }}" class="text-xs font-semibold text-slate-400 hover:text-red-400">Logout</a>
+        <form method="POST" action="{{ route('logout') }}" class="print:hidden">
+            @csrf
+            <button type="submit" class="text-xs font-semibold text-slate-400 hover:text-red-400">Logout</button>
+        </form>
     </header>
 
     {{-- ---------------------------------------------------- FLASH --}}
@@ -171,60 +180,74 @@
     </div>
 
     {{-- ---------------------------------------------------- THERMAL RECEIPT --}}
-    {{-- Hidden on screen; becomes the ONLY visible content when printing. --}}
-    <div id="thermal-receipt" class="hidden" aria-hidden="true">
-        @if ($lastReceipt)
-            <div class="text-center">
-                @if (filled($lastReceipt['store']['print_header']))
-                    <p class="text-[13px] font-bold uppercase">{{ $lastReceipt['store']['print_header'] }}</p>
-                @endif
-                <p class="text-[15px] font-bold uppercase">{{ $lastReceipt['store']['name'] }}</p>
-                @if (filled($lastReceipt['store']['address']))
-                    <p>{{ $lastReceipt['store']['address'] }}</p>
-                @endif
-                @if (filled($lastReceipt['store']['phone']))
-                    <p>Ph: {{ $lastReceipt['store']['phone'] }}</p>
-                @endif
+    {{-- Shown on screen as a bill preview after checkout; in print became the
+         ONLY visible content (the @media print rules strip the whole app). --}}
+    @if ($lastReceipt)
+        <div id="thermal-receipt"
+             class="mx-auto mb-5 w-full max-w-sm rounded-xl border border-slate-800 bg-white px-4 py-4 text-black"
+             aria-label="Bill preview">
+
+            <div class="mb-2 flex items-center justify-between border-b border-dashed border-slate-300 pb-2 print:hidden">
+                <span class="text-xs font-black uppercase tracking-widest text-slate-500">Bill {{ $lastReceipt['order_number'] }}</span>
+                <button type="button" onclick="window.print()"
+                        class="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-slate-950 hover:bg-emerald-400">
+                    🖨 Print Bill
+                </button>
             </div>
 
-            <p class="my-1">--------------------------------</p>
-            <div class="flex justify-between">
-                <span>Bill: {{ $lastReceipt['order_number'] }}</span>
-                <span>{{ $lastReceipt['placed_at'] }}</span>
-            </div>
-            @if (filled($lastReceipt['cashier']))
-                <div class="flex justify-between">
-                    <span>Cashier: {{ $lastReceipt['cashier'] }}</span>
+            <div class="mx-auto w-[72mm] max-w-full font-mono text-[13px] leading-[1.4]" id="thermal-paper">
+                <div class="text-center">
+                    @if (filled($lastReceipt['store']['print_header']))
+                        <p class="text-[12px] font-bold uppercase">{{ $lastReceipt['store']['print_header'] }}</p>
+                    @endif
+                    <p class="text-[14px] font-bold uppercase">{{ $lastReceipt['store']['name'] }}</p>
+                    @if (filled($lastReceipt['store']['address']))
+                        <p>{{ $lastReceipt['store']['address'] }}</p>
+                    @endif
+                    @if (filled($lastReceipt['store']['phone']))
+                        <p>Ph: {{ $lastReceipt['store']['phone'] }}</p>
+                    @endif
                 </div>
-            @endif
-            <p class="my-1">--------------------------------</p>
 
-            @foreach ($lastReceipt['items'] as $item)
+                <p class="my-1">--------------------------------</p>
                 <div class="flex justify-between">
-                    <span class="truncate pr-1">{{ $item['quantity'] }} x {{ $item['food_item_name'] }}</span>
-                    <span>{{ $item['subtotal'] }}</span>
+                    <span>Bill: {{ $lastReceipt['order_number'] }}</span>
+                    <span>{{ $lastReceipt['placed_at'] }}</span>
                 </div>
-            @endforeach
-
-            <p class="my-1">--------------------------------</p>
-            <div class="flex justify-between font-bold">
-                <span>TOTAL</span>
-                <span>Rs. {{ $lastReceipt['total_amount'] }}</span>
-            </div>
-            <div class="flex justify-between uppercase">
-                <span>Paid via</span>
-                <span>{{ $lastReceipt['payment_mode'] }}</span>
-            </div>
-            <p class="my-1">--------------------------------</p>
-
-            <div class="text-center">
-                @if (filled($lastReceipt['store']['print_footer']))
-                    <p>{{ $lastReceipt['store']['print_footer'] }}</p>
+                @if (filled($lastReceipt['cashier']))
+                    <div class="flex justify-between">
+                        <span>Cashier: {{ $lastReceipt['cashier'] }}</span>
+                    </div>
                 @endif
-                <p class="mt-1">Powered by BizBite</p>
+                <p class="my-1">--------------------------------</p>
+
+                @foreach ($lastReceipt['items'] as $item)
+                    <div class="flex justify-between">
+                        <span class="truncate pr-1">{{ $item['quantity'] }} x {{ $item['food_item_name'] }}</span>
+                        <span>{{ $item['subtotal'] }}</span>
+                    </div>
+                @endforeach
+
+                <p class="my-1">--------------------------------</p>
+                <div class="flex justify-between font-bold">
+                    <span>TOTAL</span>
+                    <span>Rs. {{ $lastReceipt['total_amount'] }}</span>
+                </div>
+                <div class="flex justify-between uppercase">
+                    <span>Paid via</span>
+                    <span>{{ $lastReceipt['payment_mode'] }}</span>
+                </div>
+                <p class="my-1">--------------------------------</p>
+
+                <div class="text-center">
+                    @if (filled($lastReceipt['store']['print_footer']))
+                        <p>{{ $lastReceipt['store']['print_footer'] }}</p>
+                    @endif
+                    <p class="mt-1">Powered by BizBite</p>
+                </div>
             </div>
-        @endif
-    </div>
+        </div>
+    @endif
 
     {{-- ---------------------------------------------------- EVENT BRIDGE --}}
     {{-- Keyboard shortcuts -> Livewire events; `trigger-print` -> dialog. --}}

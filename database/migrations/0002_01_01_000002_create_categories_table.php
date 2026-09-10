@@ -11,10 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('tbl_categories', function (Blueprint $table) {
+        Schema::create('tbl_pos_categories', function (Blueprint $table) {
             $table->id();
             $table->foreignId('store_id')->index()->constrained(
-                table: 'tbl_stores'
+                table: 'tbl_pos_stores'
             )->cascadeOnDelete();
             $table->string('name');
             $table->boolean('is_active')->default(true)->index();
@@ -32,6 +32,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('tbl_categories');
+        Schema::dropIfExists('tbl_pos_categories');
     }
 };

@@ -10,9 +10,9 @@ class Store extends Model
     use HasFactory;
 
     /**
-     * Every business + framework table uses the `tbl_` prefix.
+     * Every business + framework table uses the `tbl_pos_` prefix.
      */
-    protected $table = 'tbl_stores';
+    protected $table = 'tbl_pos_stores';
 
     /**
      * The attributes that are mass assignable.

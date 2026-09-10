@@ -67,13 +67,22 @@ final class BillingDashboard extends Component
     private OrderService $orders;
 
     /**
-     * Inject the SINGLE shared OrderService here — never duplicate its logic.
+     * Livewire 3 ONLY calls mount() on the very first full-page render.
+     * Every subsequent interaction (wire:click, live search, checkout) is a
+     * re-hydration that skips mount() and runs boot() instead. The OrderService
+     * must therefore be re-bound in boot() so checkout() never touches an
+     * uninitialized property after the first menu tap — this was the cause of
+     * "Typed property BillingDashboard::$orders must not be accessed before
+     * initialization" whenever a cashier tapped items then pressed settle.
      */
-    public function mount(OrderService $orders): void
+    public function boot(OrderService $orders): void
+    {
+        $this->orders = $orders;
+    }
+
+    public function mount(): void
     {
         $this->authorize('access-pos-portal');
-
-        $this->orders = $orders;
     }
 
     // ---------------------------------------------------------------------

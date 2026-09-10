@@ -19,7 +19,7 @@ class AuditLog extends Model
 {
     use HasFactory;
 
-    protected $table = 'tbl_audit_logs';
+    protected $table = 'tbl_pos_audit_logs';
 
     public const ACTION_PRICE_UPDATED = 'price_updated';
     public const ACTION_ITEM_CREATED = 'item_created';

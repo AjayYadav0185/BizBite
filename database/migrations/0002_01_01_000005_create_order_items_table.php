@@ -11,13 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('tbl_order_items', function (Blueprint $table) {
+        Schema::create('tbl_pos_order_items', function (Blueprint $table) {
             $table->id();
             $table->foreignId('order_id')->constrained(
-                table: 'tbl_orders'
+                table: 'tbl_pos_orders'
             )->cascadeOnDelete();
             // Snapshot of the sold item: optional link back to the live menu + full tax split for GST bills.
-            $table->foreignId('food_item_id')->nullable()->constrained(table: 'tbl_food_items')->nullOnDelete();
+            $table->foreignId('food_item_id')->nullable()->constrained(table: 'tbl_pos_food_items')->nullOnDelete();
             $table->string('food_item_name');
             $table->unsignedInteger('quantity')->default(1);
             $table->decimal('price', 10, 2)->default(0);
@@ -36,6 +36,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('tbl_order_items');
+        Schema::dropIfExists('tbl_pos_order_items');
     }
 };

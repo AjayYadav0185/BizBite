@@ -105,7 +105,14 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
-        $request->user()?->currentAccessToken()?->delete();
+        $token = $request->user()?->currentAccessToken();
+
+        // In testing / session-fallback scenarios the guard may resolve the
+        // user WITHOUT a persisted token (Sanctum returns a TransientToken
+        // which has no delete()), so guard the call instead of crashing.
+        if ($token && ! $token instanceof \Laravel\Sanctum\TransientToken) {
+            $token->delete();
+        }
 
         return Response::json([
             'message' => 'Logged out successfully.',

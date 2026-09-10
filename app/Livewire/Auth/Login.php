@@ -48,9 +48,24 @@ final class Login extends Component
             ]);
         }
 
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        // Block deactivated staff accounts at the door (mirrors the same check
+        // in Api\AuthController@login). Without this a disabled cashier could
+        // keep signing in and placing bills on the web POS.
+        if (! $user->is_active) {
+            Auth::logout();
+            session()->invalidate();
+            session()->regenerateToken();
+
+            throw ValidationException::withMessages([
+                'email' => 'Your account has been deactivated. Please contact the store owner.',
+            ]);
+        }
+
         session()->regenerate();
 
-        $user = Auth::user();
         $user->forceFill(['last_login_at' => now()])->saveQuietly();
 
         Audit::record(

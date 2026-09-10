@@ -12,7 +12,7 @@ class StoreDevice extends Model
 {
     use HasFactory;
 
-    protected $table = 'tbl_store_devices';
+    protected $table = 'tbl_pos_store_devices';
 
     protected $fillable = [
         'store_id',

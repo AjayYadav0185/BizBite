@@ -16,7 +16,7 @@ class Order extends Model
 {
     use HasFactory;
 
-    protected $table = 'tbl_orders';
+    protected $table = 'tbl_pos_orders';
 
     /**
      * The attributes that are mass assignable.

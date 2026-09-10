@@ -28,8 +28,16 @@ class EnsureRole
 
         abort_if($user === null, 401);
 
+        abort_unless($user->is_active, 403, 'Your account has been deactivated.');
+
+        // The role cast may resolve to null if the user's stored role value is
+        // not part of the UserRole enum (e.g. an owner edited the column to a
+        // value such as 'staff' directly in the database). Use a null-safe read
+        // and deny access instead of crashing on a null property access.
+        $role = $user->role?->value;
+
         abort_unless(
-            in_array($user->role->value, $roles, strict: true),
+            is_string($role) && in_array($role, $roles, strict: true),
             403,
             'Your role does not have access to this area.'
         );

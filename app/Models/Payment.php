@@ -12,7 +12,7 @@ class Payment extends Model
 {
     use HasFactory;
 
-    protected $table = 'tbl_payments';
+    protected $table = 'tbl_pos_payments';
 
     protected $fillable = [
         'store_id',

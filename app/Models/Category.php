@@ -12,7 +12,7 @@ class Category extends Model
 {
     use HasFactory;
 
-    protected $table = 'tbl_categories';
+    protected $table = 'tbl_pos_categories';
     /**
      * The attributes that are mass assignable.
      *

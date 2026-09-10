@@ -29,7 +29,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // All framework + business tables use the `tbl_` prefix — point
+        // All framework + business tables use the `tbl_pos_` prefix — point
         // Sanctum's token model at the renamed table.
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
         // -------------------------------------------------------------------

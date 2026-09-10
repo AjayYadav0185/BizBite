@@ -11,13 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('tbl_food_items', function (Blueprint $table) {
+        Schema::create('tbl_pos_food_items', function (Blueprint $table) {
             $table->id();
             $table->foreignId('store_id')->index()->constrained(
-                table: 'tbl_stores'
+                table: 'tbl_pos_stores'
             )->cascadeOnDelete();
             $table->foreignId('category_id')->nullable()->constrained(
-                table: 'tbl_categories'
+                table: 'tbl_pos_categories'
             )->nullOnDelete();
             $table->string('name');
             $table->decimal('price', 10, 2)->default(0);
@@ -38,6 +38,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('tbl_food_items');
+        Schema::dropIfExists('tbl_pos_food_items');
     }
 };

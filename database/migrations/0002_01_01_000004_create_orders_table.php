@@ -11,13 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('tbl_orders', function (Blueprint $table) {
+        Schema::create('tbl_pos_orders', function (Blueprint $table) {
             $table->id();
             $table->foreignId('store_id')->index()->constrained(
-                table: 'tbl_stores'
+                table: 'tbl_pos_stores'
             )->cascadeOnDelete();
             $table->foreignId('user_id')->nullable()->constrained(
-                table: 'tbl_users'
+                table: 'tbl_pos_users'
             )->nullOnDelete();
             $table->string('order_number')->index();
             // Indian market: money snapshot (subtotal/discount/tax/round-off/grand total),
@@ -48,6 +48,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('tbl_orders');
+        Schema::dropIfExists('tbl_pos_orders');
     }
 };

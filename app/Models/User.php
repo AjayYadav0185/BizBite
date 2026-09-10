@@ -17,7 +17,7 @@ class User extends Authenticatable
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasApiTokens;
 
-    protected $table = 'tbl_users';
+    protected $table = 'tbl_pos_users';
 
     /**
      * The attributes that are mass assignable.
@@ -55,7 +55,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'role' => UserRole::class,
+            'role' => \App\Models\Casts\LenientEnumCast::class.':'.UserRole::class,
             'is_active' => 'boolean',
             'last_login_at' => 'datetime',
         ];

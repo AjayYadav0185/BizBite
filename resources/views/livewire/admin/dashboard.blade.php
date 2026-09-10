@@ -29,7 +29,10 @@
                    class="ml-2 rounded-lg bg-emerald-500 px-3 py-2 text-white transition hover:bg-emerald-400">
                     POS →
                 </a>
-                <a href="{{ route('logout') }}" class="px-3 py-2 text-slate-400 hover:text-red-500">Logout</a>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="px-3 py-2 text-slate-400 hover:text-red-500">Logout</button>
+                </form>
             </nav>
         </div>
     </header>

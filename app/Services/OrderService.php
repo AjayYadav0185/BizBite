@@ -28,11 +28,11 @@ use Throwable;
  *   - All persistence happens inside ONE database transaction; a failure
  *     rolls back the order AND all of its snapshot rows atomically.
  *   - Client supplied totals are NEVER trusted: every price is re-read from
- *     the `tbl_food_items` table and the grand total recomputed server side.
+ *     the `tbl_pos_food_items` table and the grand total recomputed server side.
  *   - Cross-tenant attacks are structurally impossible: FoodItem carries the
  *     global StoreScope, so item ids from another store resolve to nothing.
  *   - Bill numbers are per-store, per-day sequences guarded by the
- *     `tbl_orders.store_id + order_number` unique index with retry-on-collision
+ *     `tbl_pos_orders.store_id + order_number` unique index with retry-on-collision
  *     to stay safe under concurrent cashier/Flutter traffic.
  *   - Flutter retries are idempotent: pass `idempotency_key` and a replay
  *     returns the original receipt instead of creating a duplicate bill.
@@ -314,7 +314,7 @@ final class OrderService
      *
      * Runs inside the caller's transaction with a row-level lock held on the
      * store, so two cashiers can never receive the same number; the unique
-     * composite index `tbl_orders.store_id + order_number` is the final safety
+     * composite index `tbl_pos_orders.store_id + order_number` is the final safety
      * net and the transaction's attempts:3 above retries on the rare race.
      */
     private function generateOrderNumber(int $storeId): string

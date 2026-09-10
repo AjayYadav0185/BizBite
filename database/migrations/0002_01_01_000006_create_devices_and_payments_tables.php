@@ -10,15 +10,15 @@ return new class extends Migration
      * Run the migrations.
      *
      * Indian market Phase-2 support:
-     *  - tbl_store_devices: one row per Flutter device (FCM push + offline queue bookkeeping).
-     *  - tbl_payments: payment attempts per order (UPI-first India: UPI ref / txn id / QR payload).
+     *  - tbl_pos_store_devices: one row per Flutter device (FCM push + offline queue bookkeeping).
+     *  - tbl_pos_payments: payment attempts per order (UPI-first India: UPI ref / txn id / QR payload).
      */
     public function up(): void
     {
-        Schema::create('tbl_store_devices', function (Blueprint $table) {
+        Schema::create('tbl_pos_store_devices', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('store_id')->index()->constrained(table: 'tbl_stores')->cascadeOnDelete();
-            $table->foreignId('user_id')->nullable()->constrained(table: 'tbl_users')->nullOnDelete();
+            $table->foreignId('store_id')->index()->constrained(table: 'tbl_pos_stores')->cascadeOnDelete();
+            $table->foreignId('user_id')->nullable()->constrained(table: 'tbl_pos_users')->nullOnDelete();
             $table->string('device_id', 100)->index();
             // android | ios | web | pos
             $table->string('platform', 20)->default('android')->index();
@@ -31,10 +31,10 @@ return new class extends Migration
             $table->unique(['store_id', 'device_id']);
         });
 
-        Schema::create('tbl_payments', function (Blueprint $table) {
+        Schema::create('tbl_pos_payments', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('store_id')->index()->constrained(table: 'tbl_stores')->cascadeOnDelete();
-            $table->foreignId('order_id')->index()->constrained(table: 'tbl_orders')->cascadeOnDelete();
+            $table->foreignId('store_id')->index()->constrained(table: 'tbl_pos_stores')->cascadeOnDelete();
+            $table->foreignId('order_id')->index()->constrained(table: 'tbl_pos_orders')->cascadeOnDelete();
             // cash | upi | card | credit | split
             $table->string('mode', 20)->default('cash')->index();
             $table->decimal('amount', 10, 2)->default(0);
@@ -59,7 +59,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('tbl_payments');
-        Schema::dropIfExists('tbl_store_devices');
+        Schema::dropIfExists('tbl_pos_payments');
+        Schema::dropIfExists('tbl_pos_store_devices');
     }
 };

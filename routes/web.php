@@ -40,7 +40,7 @@ Route::middleware('guest')->group(function () {
 // ---------------------------------------------------------------------------
 
 Route::middleware(['auth'])->group(function () {
-    Route::post('/logout', function () {
+    Route::match(['get', 'post'], '/logout', function () {
         Auth::guard('web')->logout();
         request()->session()->invalidate();
         request()->session()->regenerateToken();

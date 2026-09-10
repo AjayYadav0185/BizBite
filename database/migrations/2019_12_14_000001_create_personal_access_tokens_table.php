@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('tbl_personal_access_tokens', function (Blueprint $table) {
+        Schema::create('tbl_pos_personal_access_tokens', function (Blueprint $table) {
             $table->id();
             $table->morphs('tokenable');
             $table->text('name');
@@ -28,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('tbl_personal_access_tokens');
+        Schema::dropIfExists('tbl_pos_personal_access_tokens');
     }
 };

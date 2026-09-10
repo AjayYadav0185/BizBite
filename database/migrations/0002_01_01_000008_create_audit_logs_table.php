@@ -16,11 +16,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('tbl_audit_logs', function (Blueprint $table) {
+        Schema::create('tbl_pos_audit_logs', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('store_id')->index()->constrained(table: 'tbl_stores')->cascadeOnDelete();
+            $table->foreignId('store_id')->index()->constrained(table: 'tbl_pos_stores')->cascadeOnDelete();
             // Staff member who performed the action (null = system).
-            $table->foreignId('user_id')->nullable()->constrained(table: 'tbl_users')->nullOnDelete();
+            $table->foreignId('user_id')->nullable()->constrained(table: 'tbl_pos_users')->nullOnDelete();
             $table->string('user_name', 100)->nullable();
             // price_updated | item_created | item_deleted | item_availability |
             // category_created | category_updated | category_deleted |
@@ -50,6 +50,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('tbl_audit_logs');
+        Schema::dropIfExists('tbl_pos_audit_logs');
     }
 };
