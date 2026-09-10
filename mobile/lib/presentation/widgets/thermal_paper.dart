@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/bizbite_theme.dart';
+
 /// Jagged "torn paper" edge rendered above and below the on-screen thermal
 /// receipt preview, so the digital roll reads like real 58mm/80mm paper.
 class TearEdge extends StatelessWidget {
@@ -73,7 +75,7 @@ class _TearEdgePainter extends CustomPainter {
 class DashedDivider extends StatelessWidget {
   const DashedDivider({
     super.key,
-    this.color = const Color(0xFF8E8A86),
+    this.color = AppColors.paperMuted,
     this.height = 12,
     this.thickness = 1.1,
     this.dashWidth = 4,

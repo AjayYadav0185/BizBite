@@ -57,6 +57,10 @@ dependencies:
   intl: ^0.20.0               # ₹ currency + receipt timestamp formatting
   qr_flutter: ^4.1.0
 
+  # --- Theme (single source: lib/presentation/theme/bizbite_theme.dart) ----
+  google_fonts: ^6.2.1        # Poppins everywhere (spec §4)
+  shared_preferences: ^2.3.2 # persist ThemeMode (light/dark/system)
+
 # Vendored copy of blue_thermal_printer 1.2.3 with Android fixes for modern
 # AGP: explicit `namespace`, compileSdk 34, and no legacy manifest `package`
 # attribute. The upstream package is unmaintained and fails to build with

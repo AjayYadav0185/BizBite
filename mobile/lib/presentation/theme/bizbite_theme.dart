@@ -1,155 +1,398 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-/// BizBite POS design system — the single source of truth for color, type,
-/// shape and component styling across the billing flow.
-///
-/// Design rules (see docs/design/POS_UI_DESIGN_SPEC.md):
-///  * Warm, appetizing palette — deep amber `#E65100` drives every primary
-///    action; success/alert statuses use `#2E7D32` / `#EF6C00`.
-///  * Soft off-white canvas `#F5F5F5` with pure-white cards for scannable
-///    contrast; a warm dark `#1B1712` header shell for a premium till feel.
-///  * Card-based layout, 12–16dp corner radii, zero visual clutter.
-///  * Bold, tabular-figure numerics for prices and order counts so columns
-///    of money never jitter while a cashier is scanning the bill.
+// ============================================================
+// SINGLE SOURCE OF TRUTH — edit ONLY this file to re-skin.
+// Mirrors mobile/docs/design/POS_UI_DESIGN_SPEC.md.
+// ============================================================
+
+/// Spec §3 — color tokens. Never hardcode hex elsewhere.
+abstract final class AppColors {
+  static const Color primary = Color(0xFF4F46E5);
+  static const Color primaryDark = Color(0xFF818CF8);
+  static const Color primaryLight = Color(0xFF3366FF);
+  static const Color primarySoft = Color(0xFF2563EB);
+  static const Color accentBlue = Color(0xFF2F6FED);
+  static const Color skyBlue = Color(0xFF00A3FF);
+  static const Color purple = Color(0xFF8A4FDB);
+  static const Color infoBg = Color(0xFFF0F4FF);
+  static const Color accentSoft = Color(0xFF93C5FD);
+  static const Color primaryDeep = Color(0xFF3730A3);
+  static const Color ink = Color(0xFF14151F);
+  static const Color inkDark = Color(0xFF0F172A);
+  static const Color muted = Color(0xFF9AA1AC);
+  static const Color faintMuted = Color(0xFFB8BEC9);
+  static const Color slate700 = Color(0xFF334155);
+  static const Color slate600 = Color(0xFF475569);
+  static const Color slate500 = Color(0xFF64748B);
+  static const Color slate400 = Color(0xFF94A3B8);
+  static const Color slate800 = Color(0xFF1E293B);
+  static const Color background = Color(0xFFF7F8FB);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color surfaceMuted = Color(0xFFF3F4F6);
+  static const Color surfaceSoft = Color(0xFFF8F9FA);
+  static const Color surfaceSoft2 = Color(0xFFF5F6FA);
+  static const Color surfaceSubtle = Color(0xFFF0F1F4);
+  static const Color gradientStart = Color(0xFFF4F7FC);
+  static const Color gradientMid = Color(0xFFE9EDF5);
+  static const Color gradientEnd = Color(0xFFE3E8F3);
+  static const Color darkSurface = Color(0xFF2A2D3A);
+  static const Color border = Color(0xFFE2E5EA);
+  static const Color borderLight = Color(0xFFE2E8F0);
+  static const Color borderMuted = Color(0xFFCBD5E1);
+  static const Color success = Color(0xFF22C55E);
+  static const Color successDeep = Color(0xFF16A34A);
+  static const Color successAlt = Color(0xFF34A853);
+  static const Color successBg = Color(0xFFE6F4EA);
+  static const Color warning = Color(0xFFFF8C42);
+  static const Color warningDeep = Color(0xFFFF6D00);
+  static const Color warningBg = Color(0xFFFEF9C3);
+  static const Color error = Color(0xFFD92D20);
+  static const Color errorAlt = Color(0xFFEF4444);
+  static const Color errorDeep = Color(0xFFDC2626);
+  static const Color errorBg = Color(0xFFFDECEC);
+  static const Color infoCyan = Color(0xFF17A8C4);
+  static const Color whatsapp = Color(0xFF25D366);
+  static const Color bgDark = Color(0xFF14151F);
+  static const Color cardDark = Color(0xFF1E222B);
+  static const Color paperInk = Color(0xFF26221E);
+  static const Color paperMuted = Color(0xFF8A857F);
+  static const Color printerBed = Color(0xFF161310);
+}
+
+/// Spec §5 — spacing scale.
+abstract final class AppSpacing {
+  static const double xs = 4;
+  static const double sm = 8;
+  static const double smPlus = 10;
+  static const double md = 12;
+  static const double lg = 16;
+  static const double xl = 24;
+  static const double xxl = 32;
+}
+
+/// Spec §5 — radius scale.
+abstract final class AppRadius {
+  static const double sm = 8;
+  static const double md = 12;
+  static const double lg = 16;
+  static const double xl = 18;
+  static const double xxl = 24;
+  static const double full = 999;
+}
+
+/// Spec §5 — shadows (elevation 0, soft shadow does depth).
+abstract final class AppShadows {
+  static List<BoxShadow> get card => const [
+        BoxShadow(
+          color: Color(0x0D14151F),
+          blurRadius: 12,
+          offset: Offset(0, 2),
+        ),
+      ];
+  static List<BoxShadow> get bar => const [
+        BoxShadow(
+          color: Color(0x1414151F),
+          blurRadius: 16,
+          offset: Offset(0, -4),
+        ),
+      ];
+}
+
+/// Spec §5 — gradients (page backdrop + brand-dark tiles).
+abstract final class AppGradients {
+  static const LinearGradient page = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [
+      AppColors.gradientStart,
+      AppColors.gradientMid,
+      AppColors.gradientEnd,
+    ],
+  );
+  static const LinearGradient brand = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [AppColors.ink, AppColors.darkSurface],
+  );
+  static const LinearGradient brandIndigo = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [AppColors.primary, AppColors.primarySoft],
+  );
+}
+
+/// BizBite POS design system — ThemeData + legacy aliases.
 abstract final class BizBiteTheme {
-  // --- Brand ---------------------------------------------------------------
-  /// Deep Amber — appetite-stimulating primary for CTAs and money accents.
-  static const Color brand = Color(0xFFE65100);
+  // --- Brand (legacy aliases → AppColors §3) --------------------------------
+  /// Deep Amber legacy alias — now indigo primary per spec.
+  static const Color brand = AppColors.primary;
 
-  /// Darker amber used on the "Process & Print" emphasis states.
-  static const Color brandDeep = Color(0xFFBF360C);
+  /// Darker emphasis legacy alias — now primarySoft per spec.
+  static const Color brandDeep = AppColors.primarySoft;
 
-  /// Soft amber wash for selected chips, badges and tinted surfaces.
-  static const Color brandSoft = Color(0xFFFFE0B2);
+  /// Soft wash legacy alias — now infoBg per spec.
+  static const Color brandSoft = AppColors.infoBg;
 
-  // --- Neutrals ------------------------------------------------------------
+  // --- Neutrals (legacy aliases → AppColors §3) ------------------------------
   /// Soft off-white app canvas.
-  static const Color canvas = Color(0xFFF5F5F5);
+  static const Color canvas = AppColors.background;
 
-  /// Warm dark ink for the header shell / dark surfaces.
-  static const Color inkDark = Color(0xFF1B1712);
+  /// Warm dark ink legacy alias — now spec ink per §3.
+  static const Color inkDark = AppColors.ink;
 
   /// Muted label grey.
-  static const Color inkMuted = Color(0xFF6F6A66);
+  static const Color inkMuted = AppColors.muted;
 
-  static const Color hairline = Color(0xFFE4E0DC);
+  static const Color hairline = AppColors.border;
 
-  // --- Status --------------------------------------------------------------
+  // --- Status (legacy aliases → AppColors §3) --------------------------------
   /// Success Green — paid / settled orders.
-  static const Color success = Color(0xFF2E7D32);
+  static const Color success = AppColors.success;
 
-  static const Color successContainer = Color(0xFFE6F4EA);
+  static const Color successContainer = AppColors.successBg;
 
   /// Alert Amber — pending kitchen / attention states.
-  static const Color alert = Color(0xFFEF6C00);
+  static const Color alert = AppColors.warning;
 
-  static ThemeData light() {
-    final scheme = ColorScheme.fromSeed(seedColor: brand).copyWith(
-      primary: brand,
+  static ThemeData light() => _build(Brightness.light);
+
+  static ThemeData dark() => _build(Brightness.dark);
+
+  /// Spec §4 — Poppins text scale (w800 display → w700 labels).
+  static TextTheme get baseTextTheme => const TextTheme(
+        displaySmall: TextStyle(fontSize: 30, fontWeight: FontWeight.w800),
+        headlineMedium: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+        headlineSmall: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        titleSmall: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        bodyLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+        bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+        bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+        labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        labelMedium: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+      );
+
+  static ThemeData _build(Brightness brightness) {
+    final darkMode = brightness == Brightness.dark;
+    final scheme = ColorScheme.fromSeed(seedColor: AppColors.primary).copyWith(
+      brightness: brightness,
+      primary: darkMode ? AppColors.primaryDark : AppColors.primary,
       onPrimary: Colors.white,
-      primaryContainer: brandSoft,
-      onPrimaryContainer: const Color(0xFF4A2000),
-      secondary: brandDeep,
+      primaryContainer: AppColors.infoBg,
+      onPrimaryContainer: AppColors.ink,
+      secondary: AppColors.primarySoft,
       onSecondary: Colors.white,
-      secondaryContainer: const Color(0xFFFFDBD1),
-      onSecondaryContainer: const Color(0xFF410E0B),
-      surface: Colors.white,
-      onSurface: const Color(0xFF201C18),
-      onSurfaceVariant: inkMuted,
-      surfaceContainerLowest: Colors.white,
-      surfaceContainerLow: const Color(0xFFFAF9F8),
-      surfaceContainer: const Color(0xFFF5F3F1),
-      surfaceContainerHigh: const Color(0xFFEFEDEB),
-      outlineVariant: hairline,
-      error: const Color(0xFFB3261E),
+      secondaryContainer: AppColors.infoBg,
+      onSecondaryContainer: AppColors.ink,
+      surface: darkMode ? AppColors.cardDark : AppColors.surface,
+      onSurface: darkMode ? Colors.white : AppColors.ink,
+      onSurfaceVariant: darkMode ? AppColors.faintMuted : AppColors.muted,
+      surfaceContainerLowest: darkMode ? AppColors.cardDark : Colors.white,
+      surfaceContainerLow:
+          darkMode ? AppColors.cardDark : AppColors.surfaceSoft2,
+      surfaceContainer:
+          darkMode ? AppColors.cardDark : AppColors.surfaceMuted,
+      surfaceContainerHigh:
+          darkMode ? AppColors.darkSurface : AppColors.surfaceSubtle,
+      outlineVariant: AppColors.border,
+      outline: darkMode ? AppColors.slate500 : AppColors.borderMuted,
+      error: AppColors.error,
+      onError: Colors.white,
+      errorContainer: AppColors.errorBg,
+      onErrorContainer: AppColors.error,
+      tertiary: AppColors.accentBlue,
+      tertiaryContainer: AppColors.infoBg,
     );
 
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      scaffoldBackgroundColor: canvas,
+      scaffoldBackgroundColor:
+          darkMode ? AppColors.bgDark : AppColors.background,
       splashFactory: InkSparkle.splashFactory,
+      textTheme: GoogleFonts.poppinsTextTheme(baseTextTheme),
+      // Spec §6 — AppBar transparent, 0 elevation, ink fg + gradient space.
       appBarTheme: const AppBarTheme(
-        backgroundColor: inkDark,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.ink,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyle(
-          fontSize: 17,
+          fontSize: 18,
           fontWeight: FontWeight.w700,
-          color: Colors.white,
+          color: AppColors.ink,
           letterSpacing: -0.2,
         ),
       ),
       cardTheme: CardThemeData(
-        color: Colors.white,
+        color: darkMode ? AppColors.cardDark : Colors.white,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: hairline),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          side: const BorderSide(color: AppColors.border),
         ),
       ),
+      // Spec §6 — buttons 18/14 pad, radius 12, w700.
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size(48, 52),
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md)),
+          textStyle:
+              const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
         ),
       ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 52),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md)),
+          side: const BorderSide(color: AppColors.primary),
+          textStyle:
+              const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md)),
+          textStyle:
+              const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+      ),
+      // Spec §6 — inputs: filled white, 14/14 pad, radius 12, muted label.
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        hintStyle: const TextStyle(color: inkMuted, fontSize: 14.5),
+        fillColor: darkMode ? AppColors.cardDark : Colors.white,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        hintStyle:
+            const TextStyle(color: AppColors.muted, fontSize: 14),
+        labelStyle: const TextStyle(
+            color: AppColors.muted, fontWeight: FontWeight.w600, fontSize: 14),
+        floatingLabelStyle: const TextStyle(
+            color: AppColors.primary, fontWeight: FontWeight.w700),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: hairline),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: BorderSide(
+              color: AppColors.border.withValues(alpha: 0.6)),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: hairline),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: BorderSide(
+              color: AppColors.border.withValues(alpha: 0.6)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: brand, width: 1.6),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide:
+              const BorderSide(color: AppColors.primary, width: 1.5),
         ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide:
+              const BorderSide(color: AppColors.error, width: 1.5),
+        ),
+      ),
+      // Spec §6 — chips pill, white bg, selected infoBg.
+      chipTheme: ChipThemeData(
+        shape: const StadiumBorder(
+            side: BorderSide(color: AppColors.border)),
+        backgroundColor: Colors.white,
+        selectedColor: AppColors.infoBg,
+        labelStyle: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: AppColors.muted),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       ),
       segmentedButtonTheme: SegmentedButtonThemeData(
         style: SegmentedButton.styleFrom(
           visualDensity: VisualDensity.compact,
           backgroundColor: Colors.white,
-          foregroundColor: inkMuted,
+          foregroundColor: AppColors.muted,
           selectedForegroundColor: Colors.white,
-          selectedBackgroundColor: brand,
-          side: const BorderSide(color: hairline),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+          selectedBackgroundColor: AppColors.primary,
+          side: const BorderSide(color: AppColors.border),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md)),
+          textStyle:
+              const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
         ),
       ),
+      // Spec §6 — snackbar floating, radius 12, ink bg / white text.
       snackBarTheme: const SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.ink,
+        contentTextStyle: TextStyle(color: Colors.white),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderRadius: BorderRadius.all(Radius.circular(AppRadius.md)),
         ),
       ),
+      // Spec §6 — bottomNav fixed, 0 elev, selected primary w700.
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         type: BottomNavigationBarType.fixed,
+        elevation: 0,
         backgroundColor: Colors.white,
-        selectedItemColor: brand,
-        unselectedItemColor: inkMuted,
-        selectedLabelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-        unselectedLabelStyle: TextStyle(fontSize: 12),
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: AppColors.muted,
+        selectedLabelStyle:
+            TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+        unselectedLabelStyle:
+            TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
       ),
-      bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: Colors.white,
-        showDragHandle: true,
+      tabBarTheme: const TabBarThemeData(
+        labelColor: AppColors.primary,
+        unselectedLabelColor: AppColors.muted,
+        labelStyle: TextStyle(fontWeight: FontWeight.w700),
+        unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w600),
+      ),
+      dividerTheme: const DividerThemeData(
+          color: AppColors.border, thickness: 1, space: 1),
+      listTileTheme: const ListTileThemeData(
+        iconColor: AppColors.primary,
+        textColor: AppColors.ink,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: darkMode ? AppColors.bgDark : Colors.white,
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            borderRadius: BorderRadius.circular(AppRadius.lg))),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: darkMode ? AppColors.bgDark : Colors.white,
+        showDragHandle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+          backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) =>
+            s.contains(WidgetState.selected) ? AppColors.primary : null),
+      ),
+      radioTheme: RadioThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) =>
+            s.contains(WidgetState.selected) ? AppColors.primary : null),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((s) =>
+            s.contains(WidgetState.selected) ? AppColors.primary : null),
+        trackColor: WidgetStateProperty.resolveWith((s) =>
+            s.contains(WidgetState.selected)
+                ? AppColors.primary.withValues(alpha: 0.4)
+                : null),
       ),
     );
   }
@@ -179,6 +422,261 @@ abstract final class BizBiteTheme {
       letterSpacing: letterSpacing,
       height: height,
       fontFeatures: const [FontFeature.tabularFigures()],
+    );
+  }
+}
+
+/// Spec S2 — ThemeMode state + persist + toggle (light→dark→system).
+class ThemeProvider extends ChangeNotifier {
+  // ignore: prefer_initializing_formals
+  ThemeProvider({SharedPreferences? prefs}) : _prefs = prefs {
+    _load();
+  }
+  static const String storeKey = 'app_theme_mode';
+  final SharedPreferences? _prefs;
+  ThemeMode _mode = ThemeMode.system;
+  ThemeMode get mode => _mode;
+  Future<void> _load() async {
+    try {
+      final p = _prefs ?? await SharedPreferences.getInstance();
+      final raw = p.getString(storeKey);
+      if (raw == 'light') {
+        _mode = ThemeMode.light;
+      } else if (raw == 'dark') {
+        _mode = ThemeMode.dark;
+      } else {
+        _mode = ThemeMode.system;
+      }
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> setMode(ThemeMode mode) async {
+    _mode = mode;
+    notifyListeners();
+    try {
+      final p = _prefs ?? await SharedPreferences.getInstance();
+      await p.setString(storeKey,
+          mode == ThemeMode.light ? 'light' : mode == ThemeMode.dark ? 'dark' : 'system');
+    } catch (_) {}
+  }
+
+  Future<void> toggleTheme() => setMode(_mode == ThemeMode.light
+      ? ThemeMode.dark
+      : _mode == ThemeMode.dark
+          ? ThemeMode.system
+          : ThemeMode.light);
+}
+
+/// Spec S7 - app chrome: transparent bar + page gradient, 44px round
+/// back/menu button, brand pill (logo 34 + title 16/w700 + sub 11/muted).
+class BizAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const BizAppBar(
+      {super.key, this.title = '', this.subtitle = '', this.actions = const []});
+  final String title;
+  final String subtitle;
+  final List<Widget> actions;
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight + 8);
+  @override
+  Widget build(BuildContext context) {
+    final canPop = Navigator.of(context).canPop();
+    return AppBar(
+      flexibleSpace: Container(
+          decoration: const BoxDecoration(gradient: AppGradients.page)),
+      leadingWidth: 60,
+      leading: Padding(
+        padding: const EdgeInsets.only(left: AppSpacing.lg),
+        child: Center(
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Material(
+              color: AppColors.ink,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () => canPop
+                    ? Navigator.of(context).maybePop()
+                    : Scaffold.of(context).openDrawer(),
+                child: Icon(
+                    canPop ? Icons.arrow_back_rounded : Icons.menu_rounded,
+                    color: Colors.white,
+                    size: 20),
+              ),
+            ),
+          ),
+        ),
+      ),
+      title: Row(children: [
+        Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md, vertical: 6),
+          decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.full),
+              border: Border.all(color: AppColors.border),
+              boxShadow: AppShadows.card),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: const BoxDecoration(
+                  gradient: AppGradients.brandIndigo, shape: BoxShape.circle),
+              child: const Icon(Icons.storefront_rounded,
+                  color: Colors.white, size: 18),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title.isEmpty ? 'BizBite' : title,
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink)),
+              Text(subtitle.isEmpty ? 'Pay Desk' : subtitle,
+                  style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.muted)),
+            ]),
+          ]),
+        ),
+      ]),
+      actions: actions,
+    );
+  }
+}
+
+/// Spec S8 - tinted finance tile (color 10pct bg, 22pct border, r12).
+class FinanceCard extends StatelessWidget {
+  const FinanceCard(
+      {super.key,
+      required this.label,
+      required this.value,
+      required this.icon,
+      required this.color});
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Row(children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label,
+                style:
+                    theme.textTheme.bodySmall?.copyWith(color: AppColors.muted)),
+            Text(value,
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w800)),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Spec S8 - status pill (success / warning / error tint).
+class StatusPill extends StatelessWidget {
+  const StatusPill({super.key, required this.label, required this.color});
+  final String label;
+  final Color color;
+  Color get _bg {
+    if (color == AppColors.success || color == AppColors.successDeep) {
+      return AppColors.successBg;
+    }
+    if (color == AppColors.warning || color == AppColors.warningDeep) {
+      return AppColors.warningBg;
+    }
+    return AppColors.errorBg;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+          color: _bg, borderRadius: BorderRadius.circular(AppRadius.full)),
+      child: Text(label,
+          style: TextStyle(
+              fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+    );
+  }
+}
+
+/// Spec S7 - centered brand header used on auth screens.
+class AuthBrandHeader extends StatelessWidget {
+  const AuthBrandHeader(
+      {super.key, this.title = 'BizBite', this.subtitle = 'Pay Desk'});
+  final String title;
+  final String subtitle;
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(children: [
+      Container(
+        height: 64,
+        width: 64,
+        decoration: const BoxDecoration(
+            gradient: AppGradients.brandIndigo, shape: BoxShape.circle),
+        child: const Icon(Icons.storefront_rounded,
+            color: Colors.white, size: 30),
+      ),
+      const SizedBox(height: AppSpacing.md),
+      Text(title,
+          style: theme.textTheme.headlineSmall
+              ?.copyWith(fontWeight: FontWeight.w800, color: AppColors.ink)),
+      Text(subtitle,
+          style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.muted)),
+    ]);
+  }
+}
+
+/// Spec S8 - white radius-16 search field card.
+class SearchFieldCard extends StatelessWidget {
+  const SearchFieldCard(
+      {super.key,
+      required this.controller,
+      this.onChanged,
+      this.hint = 'Search...'});
+  final TextEditingController controller;
+  final ValueChanged<String>? onChanged;
+  final String hint;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          boxShadow: AppShadows.card),
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          prefixIcon: const Icon(Icons.search_rounded, size: 20),
+          hintText: hint,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            borderSide:
+                const BorderSide(color: AppColors.primary, width: 1.5),
+          ),
+        ),
+      ),
     );
   }
 }

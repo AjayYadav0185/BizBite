@@ -16,6 +16,7 @@ import 'package:bizbite_mobile/features/menu/data/models/food_item_model.dart';
 import 'package:bizbite_mobile/features/orders/cart_controller.dart';
 import 'package:bizbite_mobile/features/orders/data/models/order_models.dart';
 import 'package:bizbite_mobile/presentation/screens/login_screen.dart';
+import 'package:bizbite_mobile/presentation/theme/bizbite_theme.dart';
 
 /// In-memory TokenStore so tests never touch Keychain/Keystore.
 class _MemoryTokenStore extends TokenStore {
@@ -115,14 +116,33 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       title: 'BizBite test',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange),
-      ),
+      theme: BizBiteTheme.light(),
+      darkTheme: BizBiteTheme.dark(),
       home: LoginScreen(session: session),
     ));
 
     expect(find.text('BizBite POS'), findsOneWidget);
     expect(find.text('Sign in to start billing'), findsOneWidget);
     expect(find.text('Sign in'), findsOneWidget);
+  });
+
+  test('AppColors exposes the spec single-source tokens', () {
+    expect(AppColors.primary, const Color(0xFF4F46E5));
+    expect(AppColors.background, const Color(0xFFF7F8FB));
+    expect(AppColors.success, const Color(0xFF22C55E));
+    expect(AppColors.error, const Color(0xFFD92D20));
+    expect(AppSpacing.md, 12);
+    expect(AppRadius.lg, 16);
+    expect(AppRadius.full, 999);
+    expect(AppGradients.page.colors.length, 3);
+  });
+
+  test('light + dark ThemeData build from the single source', () {
+    final light = BizBiteTheme.light();
+    final dark = BizBiteTheme.dark();
+    expect(light.colorScheme.primary, AppColors.primary);
+    expect(dark.colorScheme.primary, AppColors.primaryDark);
+    expect(light.useMaterial3, isTrue);
+    expect(light.textTheme.bodyMedium?.fontFamily, isNotNull);
   });
 }

@@ -9,6 +9,7 @@ import '../features/orders/data/models/order_receipt_model.dart';
 import 'screens/admin_screen.dart';
 import 'screens/pos_screen.dart';
 import 'services/receipt_printer.dart';
+import 'theme/bizbite_theme.dart';
 
 /// Signed-in shell: a bottom navigation bar switching between the POS
 /// billing screen (everyone) and the read-only store admin screen.
@@ -72,48 +73,44 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(storeName),
-            Text(
-              'Pay Desk',
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                color: Colors.white.withValues(alpha: 0.64),
-                letterSpacing: 0.4,
-              ),
-            ),
-          ],
-        ),
+      // Spec §7 — custom white bar + top shadow, 5-slot language.
+      // Active = ink circle + white icon, label 9.5px.
+      appBar: BizAppBar(
+        title: storeName,
+        subtitle: 'Pay Desk',
         actions: [
           IconButton(
-            icon: Icon(Icons.logout_rounded, size: 20),
+            icon: const Icon(Icons.logout_rounded, size: 20),
             tooltip: 'Sign out',
             onPressed: _onLogout,
           ),
         ],
       ),
-      body: _tabIndex == 0 ? pos : admin,
-      bottomNavigationBar: BottomNavigationBar(
-        items: [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.point_of_sale),
-            label: 'Billing',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.storefront),
-            label: 'Store',
-          ),
-        ],
-        currentIndex: _tabIndex,
-        onTap: (index) {
-          setState(() {
-            _tabIndex = index;
-          });
-        },
+      body: Container(
+        decoration: const BoxDecoration(gradient: AppGradients.page),
+        child: _tabIndex == 0 ? pos : admin,
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+            color: Colors.white, boxShadow: AppShadows.bar),
+        child: BottomNavigationBar(
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.point_of_sale),
+              label: 'Billing',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.storefront),
+              label: 'Store',
+            ),
+          ],
+          currentIndex: _tabIndex,
+          onTap: (index) {
+            setState(() {
+              _tabIndex = index;
+            });
+          },
+        ),
       ),
     );
   }

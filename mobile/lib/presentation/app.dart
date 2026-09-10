@@ -26,8 +26,9 @@ import 'theme/bizbite_theme.dart';
 ///   session ──► (booting → Splash, signedOut → Login, online → portal)
 ///   portal  ──► orderFlow ──► (pending receipt → Receipt, else → Home tabs)
 ///
-/// No Navigator is needed: swapping the widget produced by the router IS the
-/// navigation.
+/// Theme: single source `lib/presentation/theme/bizbite_theme.dart`
+/// (spec docs/design/POS_UI_DESIGN_SPEC.md) — Material3 + Poppins,
+/// theme/darkTheme/themeMode via [ThemeProvider] (persisted).
 class BizBiteApp extends StatefulWidget {
   const BizBiteApp({super.key});
 
@@ -44,6 +45,7 @@ class _BizBiteAppState extends State<BizBiteApp> {
   late OrderFlowController _orderFlow;
   late OrderCheckout _checkout;
   late ReceiptPrinter _printer;
+  final ThemeProvider _theme = ThemeProvider();
 
   @override
   void initState() {
@@ -103,16 +105,21 @@ class _BizBiteAppState extends State<BizBiteApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'BizBite',
-      theme: BizBiteTheme.light(),
-      home: ListenableBuilder(
-        listenable: _session,
-        builder: (context, child) {
-          return _session.phase == SessionPhase.online
-              ? _portal()
-              : _authScreen();
-        },
+    return ListenableBuilder(
+      listenable: Listenable.merge([_session, _theme]),
+      builder: (context, _) => MaterialApp(
+        title: 'BizBite',
+        theme: BizBiteTheme.light(),
+        darkTheme: BizBiteTheme.dark(),
+        themeMode: _theme.mode,
+        home: _session.phase == SessionPhase.online
+            ? _portal()
+            : _authScreen(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.noScaling),
+          child: child!,
+        ),
       ),
     );
   }

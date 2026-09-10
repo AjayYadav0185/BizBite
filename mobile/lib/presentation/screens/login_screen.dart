@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../features/auth/session_controller.dart';
+import '../theme/bizbite_theme.dart';
 import '../widgets/status_banner.dart';
 
 /// Sign-in screen, mirroring the Laravel `Login` Livewire component.
@@ -32,66 +33,62 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-
+    // Spec §9 auth: light bg, centered brand header, white card form,
+    // filled primary CTA + text links.
     return Scaffold(
-      body: Center(
-        child: Container(
-          width: 420,
-          padding: EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                spacing: 12,
+      body: Container(
+        decoration: const BoxDecoration(gradient: AppGradients.page),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: Container(
+              width: 420,
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(AppRadius.xl),
+                border: Border.all(color: AppColors.border),
+                boxShadow: AppShadows.card,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(Icons.storefront, size: 44, color: scheme.primary),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('BizBite POS',
-                            style: theme.textTheme.headlineSmall,
-                            selectionColor: scheme.onSurface),
-                        Text('Sign in to start billing',
-                            style: theme.textTheme.bodyMedium,
-                            selectionColor: scheme.onSurfaceVariant),
-                      ],
+                  const AuthBrandHeader(
+                      title: 'BizBite POS',
+                      subtitle: 'Sign in to start billing'),
+                  const SizedBox(height: AppSpacing.xl),
+                  StatusBanner(
+                    text: widget.session.errorMessage ?? '',
+                    error: true,
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  TextField(
+                    controller: _email,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      prefixIcon: Icon(Icons.mail_outline_rounded),
                     ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  TextField(
+                    controller: _password,
+                    obscureText: true,
+                    onSubmitted: (_) => _submit(),
+                    decoration: const InputDecoration(
+                      labelText: 'Password',
+                      prefixIcon: Icon(Icons.lock_outline_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+                  FilledButton.icon(
+                    icon: const Icon(Icons.login_rounded, size: 18),
+                    label: Text(_busy ? 'Signing in…' : 'Sign in'),
+                    onPressed: _busy ? null : _submit,
                   ),
                 ],
               ),
-              SizedBox(height: 24),
-              StatusBanner(
-                text: widget.session.errorMessage ?? '',
-                error: true,
-              ),
-              SizedBox(height: 16),
-              TextField(
-                controller: _email,
-                obscureText: false,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  icon: Icon(Icons.mail),
-                ),
-              ),
-              SizedBox(height: 8),
-              TextField(
-                controller: _password,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  icon: Icon(Icons.password),
-                ),
-              ),
-              SizedBox(height: 24),
-              FilledButton.icon(
-                icon: Icon(Icons.login, size: 18),
-                label: Text(_busy ? 'Signing in…' : 'Sign in'),
-                onPressed: _submit,
-              ),
-            ],
+            ),
           ),
         ),
       ),

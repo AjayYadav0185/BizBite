@@ -1,276 +1,75 @@
-# BizBite POS — Mobile UI/UX Design Spec
+# BizaroHQ Flutter App — UI & Theme Design
 
-**Product:** BizBite mobile POS (`mobile/`) — restaurant management & point-of-sale
-**Users:** Cashiers, waiters, managers in high-pressure, fast-paced service
-**Status:** Implemented in Flutter — see the files referenced in each section.
+Short reference for the UI system only (colors, theme, components, patterns).
 
----
+## 1. Overview
+- **App:** `bizaro_hq` — Garage Management Admin App.
+- **Framework:** Flutter + Material 3 (`useMaterial3: true`), `MaterialApp` with `theme` / `darkTheme` / `themeMode`.
+- **Entry:** `lib/main.dart` → `MyApp` (MultiProvider + `Consumer<ThemeProvider>`).
+- **Theme switch:** `ThemeProvider` (`light / dark / system`, persisted in `SharedPreferences` key `app_theme_mode`).
 
-## 1. Design System
+## 2. Theme Architecture (single source of truth)
+| File | Role |
+|---|---|
+| `lib/app/theme/app_colors.dart` | **All colors.** Never hardcode hex elsewhere. |
+| `lib/app/theme/app_theme.dart` | **All ThemeData.** `lightTheme()` / `darkTheme()`, `baseTextTheme`, `AppSpacing`, `AppRadius`, `AppShadows`, `AppGradients`. |
+| `lib/app/providers/theme_provider.dart` | ThemeMode state + persist + `toggleTheme()` (light → dark → system). |
+| `lib/main.dart` | Applies `GoogleFonts.poppinsTextTheme()` over both themes. |
 
-Implementation: `lib/presentation/theme/bizbite_theme.dart`
+> To re-skin the app edit only `app_colors.dart` + `app_theme.dart`.
 
-### 1.1 Color
+## 3. Color Tokens (`AppColors`)
+- **Brand:** `primary #4F46E5` (indigo seed), `accentBlue #2F6FED`, `primaryLight #3366FF`, `primarySoft #2563EB`, `skyBlue #00A3FF`, `purple #8A4FDB`, `infoBg #F0F4FF`.
+- **Text:** `ink #14151F`, `inkDark #0F172A`, `muted #9AA1AC`, `faintMuted #B8BEC9`, slate scale (`#334155`, `#475569`, `#64748B`, `#94A3B8`, `#1E293B`).
+- **Surfaces:** `background #F7F8FB`, `surface #FFFFFF`, `surfaceMuted #F3F4F6`, `surfaceSoft #F8F9FA`, `surfaceSoft2 #F5F6FA`, `surfaceSubtle #F0F1F4`.
+- **Gradients:** page `gradientStart #F4F7FC → gradientMid #E9EDF5 → gradientEnd #E3E8F3`; brand dark `ink → darkSurface #2A2D3A`.
+- **Borders:** `border #E2E5EA`, `borderLight #E2E8F0`, `borderMuted #CBD5E1`.
+- **Status:** success `#34A853/#22C55E/#16A34A`, warning `#FF8C42/#FF6D00`, error `#D92D20/#EF4444/#DC2626`, `infoCyan #17A8C4`, `warningBg #FEF9C3`, `whatsapp #25D366`.
+- **Dark mode:** bg `#14151F`, cards `#1E222B`, primary `#818CF8`, accents `#93C5FD`.
 
-| Token | Hex | Usage |
-|---|---|---|
-| **Brand / Primary** | `#E65100` Deep Amber | Primary CTAs ("Process & Print Receipt"), quick-add "+", selected chips, money accents |
-| **Brand Deep** | `#BF360C` | Pressed/emphasis states, in-cart "+" buttons, price text |
-| **Brand Soft** | `#FFE0B2` | Selected chip tint, badges, icon washes |
-| **Canvas** | `#F5F5F5` Soft off-white | App background — clean contrast under white cards |
-| **Ink Dark** | `#1B1712` Warm dark | App bar shell, phone-mode bill bar (premium till feel) |
-| **Success Green** | `#2E7D32` | Paid/settled orders, discount rows, "verified" tick |
-| **Success Container** | `#E6F4EA` | Receipt screen status banner |
-| **Alert Amber** | `#EF6C00` | Reserved for pending-kitchen states |
-| **Hairline** | `#E4E0DC` | Card borders, dividers, disabled fills |
+## 4. Typography
+- **Font:** Poppins everywhere — `google_fonts` (`poppinsTextTheme()` in `main.dart`) + bundled `assets/fonts/Poppins-Regular/SemiBold/Bold.ttf`.
+- **Scale (`baseTextTheme`):** `displaySmall 30/w800`, `headlineMedium 24/w800`, `headlineSmall 20/w700`, `titleLarge 18/w700`, `titleMedium 16/w700`, `titleSmall 14/w600`, `bodyLarge 16/w500`, `bodyMedium 14/w500`, `bodySmall 12/w500`, `labelLarge 14/w700`, `labelMedium 12/w700`.
+- **Usage:** headings `ink` w700/w800, body `ink`, secondary/hint `muted`.
 
-### 1.2 Typography
+## 5. Spacing / Radius / Shadows / Gradients
+- **Spacing (`AppSpacing`):** `xs 4, sm 8, md 12, lg 16, xl 24, xxl 32`.
+- **Radius (`AppRadius`):** `sm 8, md 12, lg 16, full 999`. Cards 16–18, inputs 12, chips pill.
+- **Shadow (`AppShadows.card`):** `0,2 / blur 12 / #14151F @5%`. Elevation `0` — shadows do depth.
+- **Gradients (`AppGradients`):** `page` (app-bars, backdrops); `brand` (drawer header, home hero, dark tiles).
 
-- System **Roboto** (Inter can be bundled later via `pubspec.yaml` fonts — the
-  theme is a single swap point).
-- **Bold numerals everywhere money or counts appear** —
-  `BizBiteTheme.numeral` applies `FontFeature.tabularFigures()` + `w800`, so
-  columns of prices never jitter while scanning a bill.
-- Receipt typography: `BizBiteTheme.receiptMono()` — monospaced
-  (RobotoMono → Menlo → Courier fallback chain) to mimic thermal output.
-  *For a pixel-exact match, bundle `RobotoMono` under `mobile/assets/fonts/`
-  and declare it in `pubspec.yaml`.*
+## 6. Core Components (themed in `AppTheme`)
+- **Scaffold:** `background` (light) / ink (dark).
+- **AppBar:** transparent, `0` elevation, `ink` foreground, `centerTitle: false` + gradient `flexibleSpace` on real screens.
+- **Cards:** white, `radius 16`, `elevation 0` + soft shadow.
+- **Inputs:** filled white, `14/14` padding, `radius 12`, border `border @60%`, focus `primary 1.5`, error `error 1.5`, label `muted w600`, floating `primary w700`.
+- **Buttons:** Filled `primary`/white; Outlined `primary` + `border`; Text `primary`; all `18/14` padding, `radius 12`, `w700`.
+- **Chips:** pill, white bg, selected `infoBg`, label `muted 12/w700`.
+- **Dialogs/BottomSheets:** white (`#14151F` dark), `radius 16`, no surface tint.
+- **Snackbar:** floating, `radius 12`, `ink` bg / white text.
+- **BottomNav/Tabs:** fixed, `0` elevation, selected `primary` w700, unselected `muted` w600.
+- **Lists/Dividers/FAB:** `ListTile ink`, `Divider border 1px`, FAB `primary`/white. Checkbox/Radio/Switch `primary` when selected.
 
-### 1.3 Shape, spacing & elevation
+## 7. App Chrome (custom)
+- **`AppAppBar`:** transparent + page gradient, circular `ink` back/menu button (44px), brand pill (logo 34px + title 16/w700 + subtitle 11/muted), bell with badge + profile button.
+- **Bottom nav (`MainScreen`):** custom white bar + top shadow, 5 items (Home/Customers/Vehicles/JobCards/Inventory); active = `ink` circle + white icon, label `9.5px`.
+- **Drawer:** brand gradient header + section titles (11/w700/muted) + rows (36px `surfaceMuted` circle icon + 13.5/w600 + chevron).
+- **Auth header (`AuthBrandHeader`):** centered `assets/images/bizarohq.png` (h 64) + name `22/w800/ink`.
 
-- Corner radii: **12dp** (chips, steppers, thumbs) · **14dp** (cards, inputs) ·
-  **16dp** (buttons, panels) · **18–24dp** (bill bar, sheets).
-- Base grid: 4dp; screen gutters 12–16dp; intra-card padding 10–12dp.
-- Elevation ≈ 0 everywhere — separation uses hairline borders and surface
-  tints (fast rendering, no muddy shadows).
-- Tap targets: primary actions ≥ 48dp tall (Process & Print = 56dp, footer
-  buttons = 54dp); the whole food card is a tap target; steppers are 32dp
-  pills (secondary, adjacent targets spaced 10dp+).
+## 8. Reusable Widgets
+- **`SearchSection<T>`:** white `radius 16` search field + dropdown results card (maxH 200) + removable `Chip`s.
+- **`FinanceCard` / `FinanceCompareCard` / `MiniBar`:** tinted container (`color @10%` bg, `@22%` border, `radius 12`), 18px icon + 10px label + 14/w800 value.
+- **`FloatingChatbotWidget`:** global FAB chatbot overlay. **`CarInspection3DWidget`:** WebView 3D inspection. **`VehicleDamageSvgPicker`:** SVG painter with vehicle palette tokens.
 
----
+## 9. Screen Patterns
+- **Auth:** light bg, centered brand header, white card form, filled primary CTA + text links.
+- **Dashboard/Home:** gradient header + dark brand hero, 2-col `FinanceCard` grid, white `radius 18` panels, quick-action tiles (`color @8%`, `radius 14`).
+- **Lists:** `AppAppBar` + search card + filter chips + white rounded rows, status pill (success/warning/error), FAB for add.
+- **Forms:** grouped white sections, themed fields, `SearchSection` pickers, sticky filled save button.
+- **Kanban/Analytics/Reports/Reminders/Stock/Insurance/Loyalty/Downloads/Notifications/Profile:** same card language — white panels, muted labels, pill chips, primary actions; charts use brand + status colors.
 
-## 2. Screen 1 — Home Dashboard / Quick Order Grid
+## 10. Assets / Icons / i18n
+- **Assets:** `assets/images/bizarohq.png`, `assets/icons/bizarohq.png`, `assets/animations/`, `assets/fonts/Poppins-*`.
+- **Icons:** Material (primary) + `cupertino_icons` + `font_awesome_flutter`.
+- **i18n:** `l10n/` (en/hi/bn/gu/kn/mr/ta/te/ar) via `AppLocalizations`, RTL-ready.
 
-Files: `lib/presentation/screens/pos_screen.dart` (composition),
-`lib/presentation/screens/menu_pane.dart` (grid).
-
-```
-┌──────────────────────────────────────────┐
-│ ███ Dark app bar — Store name / Pay Desk │  ← logout icon
-├──────────────────────────────────────────┤
-│ [ Dine-In │ Takeaway │ Delivery │ Parcel]│  ← SegmentedButton order type
-│ ┌──────────────────────────────────────┐ │    writes cart.orderType
-│ │ 🔍 Search menu…                      │ │  ← filled white, 14dp radius
-│ └──────────────────────────────────────┘ │
-│ (All) (Snacks) (Beverages) (Desserts) →  │  ← horizontal category chips,
-├──────────────────────────────────────────┤    icon + label, amber when active
-│ ┌─────────────┐  ┌─────────────┐         │
-│ │ ▒▒ thumb ▒▒ │  │ ▒▒ thumb ▒▒ │         │  ← 84dp tinted thumb,
-│ │        (2)▜ │  │             │         │    warm hue per category,
-│ │ Vada Pav    │  │ Masala Chai │         │    qty badge when in cart
-│ │ ₹12.00   ⊕  │  │ ₹20.00   ⊕  │         │  ← bold tabular price + 34dp "+"
-│ └─────────────┘  └─────────────┘         │
-│ … 2-column grid (more columns ≥ tablet)… │
-├──────────────────────────────────────────┤
-│ ▐ 3 item(s) on bill   ₹56.00  [🖨 Print]▌│  ← Screen 2 bill bar (below)
-└──────────────────────────────────────────┘
-```
-
-**Decisions**
-
-- **One-tap ordering:** tapping anywhere on a card adds the item; the "+"
-  button is a visual amplifier, not the only target — critical for speed.
-- In-cart items get a 1.4dp amber border + a white-ringed count badge so a
-  cashier can verify the order at a glance without opening the bill.
-- Category hue-coding (warm cream/rose/mint/butter/lavender/aqua thumbnails)
-  gives per-family visual anchors; keyword-matched food glyphs stand in for
-  images until the backend serves `image_url`.
-- Order-type toggle includes **Parcel** because `POST /api/orders` validates
-  `dine_in,takeaway,parcel,delivery` — dropping it would strand the flow.
-- Empty search results get a friendly "No items match this filter" state.
-
----
-
-## 3. Screen 2 — Cart & Billing Summary (POS View)
-
-Files: `lib/presentation/screens/cart_pane.dart` (pane),
-`lib/presentation/screens/pos_screen.dart` (responsive shell).
-
-**Responsive strategy**
-
-| Layout | Width | Bill presentation |
-|---|---|---|
-| Split-screen | ≥ 840dp (tablet/landscape) | Fixed 380dp side-sheet panel, always visible |
-| Bill bar + sheet | < 840dp (phone) | Persistent dark bill bar; full bill opens as a 92%-height modal bottom sheet |
-
-**Phone bill bar** (warm dark `#1B1712`, 18dp radius): live item count,
-grand total in 19dp tabular numerals, current order-type chip, and an amber
-"Process & Print" button — the bar *is* the checkout affordance; tapping the
-summary region opens the detailed bill.
-
-**Bill sheet / side panel anatomy (top → bottom):**
-
-```
-┌ Current Bill ─────────────── 3 items · 2 lines ─ Clear ┐
-│ Vada Pav            (−) 2 (+)              ₹24.00      │
-│   ✎ No onion — extra spicy        ← per-line note      │
-│ Masala Chai         (−) 1 (+)              ₹20.00      │
-│   ✎ Add note                                          │
-│ PAYMENT  (Cash) (UPI) (Card) (Credit) (Split)         │
-│   UPI transaction ref ___________  ← only when UPI    │
-│ ▸ Customer & discount (optional)  ← collapsed by      │
-│     default: name / phone / discount ₹                │
-│ Subtotal                                        ₹44.00│
-│ Discount                                       −₹4.00 │  ← success green
-│ Tax breakdown                       ← hook reserved*  │
-╞══ FIXED FOOTER ═══════════════════════════════════════╡
-│ GRAND TOTAL                        ✓                  │
-│ ₹40.00  (25dp w800 tabular)                           │
-│ ┌───────────────────────────────────────────────────┐ │
-│ │  🖨  PROCESS & PRINT RECEIPT      (56dp, amber)    │ │
-│ └───────────────────────────────────────────────────┘ │
-└───────────────────────────────────────────────────────┘
-```
-
-**Decisions**
-
-- Quantity steppers are 32dp stadium pills; "−" at qty 1 removes the line
-  (matches `CartController.setQuantity` semantics) — no separate delete
-  cluttering the row.
-- Kitchen notes are stored on `CartLine.note` (UI-only today; the current
-  `POST /api/orders` wire contract has no line-note field — see
-  `cart_line.dart` for the forward-compatibility note).
-- Customer/discount fields collapse into an ExpansionTile — rush-hour
-  bills stay scannable; the fields remain one tap away.
-- *Tax rows:* the backend receipt payload currently exposes only
-  subtotal/discount/total. The totals section is structured so tax rows
-  render automatically once `POST /api/orders` returns a tax breakdown.
-- Settle failures surface both inline (banner) and as a snackbar so the
-  error is visible from inside the modal sheet too.
-
----
-
-## 4. Screen 3 — Receipt Preview (Thermal Printer Optimized)
-
-Files: `lib/presentation/screens/receipt_screen.dart`,
-`lib/presentation/widgets/thermal_paper.dart` (TearEdge + DashedDivider).
-
-```
-┌────────────────────────────────────────────┐  dark "printer bed" #161310
-│ ✅ Payment received                        │  success-green banner card
-│    Cash · Bill #001-20260908-0042          │
-│                                            │
-│              ▽▽▽ torn edge ▽▽▽            │  ← jagged tear (CustomPaint)
-│ ┌────────────────────────────────────────┐ │
-│ │            BIZBITE POS                 │ │  print header (spaced caps)
-│ │        Demo Store                      │ │  17dp mono w800
-│ │     123 Main Street · Ph: …            │ │  muted mono
-│ │  - - - - - - - - - - - - - - - - - -   │ │  dashed perforation divider
-│ │  Bill #: 001-20260908-0042  (bold)     │ │
-│ │  Date: 08 Sep 2026, 12:45 PM           │ │
-│ │  Cashier: Cashier User                 │ │
-│ │  Order: Takeaway                       │ │
-│ │  - - - - - - - - - - - - - - - - - -   │ │
-│ │  ITEM      QTY   AMOUNT                │ │
-│ │  Vada Pav   2x                 Rs.24.00│ │
-│ │  Masala Chai 1x                Rs.20.00│ │
-│ │  - - - - - - - - - - - - - - - - - -   │ │
-│ │  TOTAL (3 items)           Rs.44.00    │ │  ← 19dp mono w800
-│ │  PAID VIA                     Cash     │ │
-│ │        ┌─────────┐                     │ │
-│ │        │ QR 92dp │  BIZBITE|bill#|amt  │ │
-│ │        └─────────┘                     │ │
-│ │      Scan to verify · <bill#>          │ │
-│ │      Thank you! / Powered by BizBite   │ │
-│ └────────────────────────────────────────┘ │
-│              △△△ torn edge △△△            │
-│                                            │
-│ ┌─ Print Bill via Bluetooth ─┐ ┌─ New Order ─┐ │  ← 54dp footer buttons
-│ └────────────────────────────┘ └─────────────┘ │
-└────────────────────────────────────────────┘
-```
-
-**Decisions**
-
-- 320dp paper width ≈ an 80mm roll at logical pixel scale; content padding
-  18dp mirrors real thermal margins.
-- **Jagged tear edges** are a filled zig-zag `CustomPainter` (`TearEdge`,
-  irregular tooth heights for realism), hugging the white sheet top & bottom.
-- The on-screen preview intentionally mirrors the ESC/POS generator in
-  `receipt_printer.dart` (same store header/footer, `Rs.` amounts, meta
-  rows) so what the cashier sees is what prints.
-- QR payload `BIZBITE|<order number>|<total>` is machine-verifiable and
-  cheap to render with `qr_flutter` (square eyes/modules, near-black ink).
-- Footer: white-on-dark **"Print Bill via Bluetooth"** (shows a spinner +
-  status line in the green banner while printing) and amber **"New Order"**
-  (clears the receipt and returns to the grid via
-  `orderFlow.clearReceipt()`).
-
----
-
-## 5. Screen 4 — Store Console
-
-File: `lib/presentation/screens/admin_screen.dart` (the "Store" tab).
-Shared visuals: `lib/presentation/widgets/category_visuals.dart` — the exact
-same category hue-coding and glyphs used by the POS grid, so "Beverages"
-looks the same on both tabs.
-
-```
-┌──────────────────────────────────────────┐
-│ ████████████████████████████████████████ │  dark hero card (20dp radius)
-│ █ [B]  Demo Store                        █
-│ █      MG Road, Bengaluru                █
-│ █  📞 +91 98XXX XXXXX                    █
-│ █  ▣ store@upi              [⧉ copy]    █  ← tap-to-copy UPI VPA
-│ █  (₹ INR) (GSTIN 29ABCDE1234F1Z5) …     █  ← FSSAI chip when present
-│ ████████████████████████████████████████ │
-│ ┌──────────────────────────────────────┐ │
-│ │ [A]  Amit Sharma            ADMIN   │ │  ← staff card: avatar, name,
-│ │      amit@example.com               │ │    email, role badge (amber for
-│ └──────────────────────────────────────┘ │    admin / neutral for cashier)
-│ Menu overview                            │
-│ ┌──────────────────────────────────────┐ │
-│ │ ▒ Beverages        12 item(s)      ▾ │ │  ← expandable category card,
-│ │   Masala Chai                 ₹20.00 │ │    icon tinted per category,
-│ │   Cold Coffee                 ₹60.00 │ │    price in bold tabular figures
-│ └──────────────────────────────────────┘ │
-│ Full menu & store editing lives in the   │
-│ web console.                             │
-└──────────────────────────────────────────┘
-```
-
-**Decisions**
-
-- Dark hero mirrors the app-bar shell so the Store tab feels like part of
-  the same premium till, not a bolted-on admin page.
-- UPI VPA copy affordance: cashiers share the store ID with walk-in
-  customers daily — one tap + a confirmation snackbar.
-- Role badge = session accountability: the till always shows who is signed
-  in (colored amber only for admins so ownership is obvious).
-- Category cards are collapsed expansions — a 200-item menu stays a short
-  scroll instead of an endless list; expanding shows *all* items (the old
-  UI truncated at 8).
-
----
-
-## 6. Motion & feedback (fatigue prevention)
-
-- `InkSparkle` splash + 160ms animated chip tint — perceptible feedback with
-  zero bounce delays.
-- Optimistic cart updates: menu cards badge instantly from
-  `CartController.notifyListeners()`.
-- Stable layout: the bill bar is always present (disabled when empty) so
-  muscle memory for the checkout position never re-learns.
-- Monochrome surfaces + a single accent color: the eye only has to hunt for
-  **amber = money/CTA**, **green = paid**, **red = error**.
-
----
-
-## 7. Accessibility & ergonomics
-
-- Body text ≥ 13sp; prices/totals 14–25sp bold; all text ≥ 4.5:1 on their
-  backgrounds (white-on-amber CTAs use `#E65100` with `w800` weight).
-- All destructive actions (Clear) are text-buttons colored `scheme.error`,
-  away from the primary CTA.
-- Single-hand reach: the checkout CTA lives at the bottom of every layout
-  (bill bar / sheet footer / side panel footer).

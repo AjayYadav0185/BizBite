@@ -1,28 +1,30 @@
 import 'package:flutter/material.dart';
 
+import '../theme/bizbite_theme.dart';
+
 /// Shared category visuals for the POS quick-order grid and the Store
 /// console — one place so both surfaces color-code food families
 /// identically.
 ///
-/// Warm, appetizing thumbnail hues indexed by category id so each food
-/// family keeps a stable color across sessions.
+/// Tints derive from the single-source [AppColors] brand/status tokens
+/// (spec §3) so a re-skin in `bizbite_theme.dart` flows through here too.
 
 const List<Color> categoryThumbFills = [
-  Color(0xFFFFF3E0), // warm cream
+  AppColors.infoBg, // brand tint
   Color(0xFFFFEBEE), // soft rose
-  Color(0xFFE8F5E9), // mint cream
-  Color(0xFFFFF8E1), // butter
+  AppColors.successBg, // mint cream
+  AppColors.warningBg, // butter
   Color(0xFFEDE7F6), // lavender
   Color(0xFFE0F7FA), // aqua
 ];
 
 const List<Color> categoryThumbInks = [
-  Color(0xFFBF360C),
+  AppColors.primary,
   Color(0xFFAD1457),
-  Color(0xFF2E7D32),
-  Color(0xFFEF6C00),
-  Color(0xFF4527A0),
-  Color(0xFF00838F),
+  AppColors.successDeep,
+  AppColors.warningDeep,
+  AppColors.purple,
+  AppColors.infoCyan,
 ];
 
 Color categoryFill(int categoryId) =>

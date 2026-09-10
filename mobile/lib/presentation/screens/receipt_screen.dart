@@ -43,9 +43,9 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
   bool _printing = false;
   String _printStatus = '';
 
-  /// On-paper ink colors (warm near-black + muted grey).
-  static const Color _ink = Color(0xFF26221E);
-  static const Color _inkMuted = Color(0xFF8A857F);
+  /// On-paper ink colors — single source AppColors (spec §3).
+  static const Color _ink = AppColors.paperInk;
+  static const Color _inkMuted = AppColors.paperMuted;
 
   Future<void> _reprint() async {
     if (_printing) return;
@@ -68,8 +68,8 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Dark "printer bed" background — makes the paper roll the hero.
-      backgroundColor: const Color(0xFF161310),
+      // Dark "printer bed" — makes the paper roll the hero.
+      backgroundColor: AppColors.printerBed,
       body: SafeArea(
         child: Column(
           children: [
@@ -96,7 +96,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: BizBiteTheme.successContainer,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Row(
         children: [
@@ -112,7 +112,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                   style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF1B5E20)),
+                      color: AppColors.successDeep),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -120,7 +120,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                   style: const TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF33691E)),
+                      color: AppColors.successDeep),
                 ),
                 if (_printStatus.isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -129,7 +129,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                     style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
-                        color: Color(0xFF33691E)),
+                        color: AppColors.successDeep),
                   ),
                 ],
               ],

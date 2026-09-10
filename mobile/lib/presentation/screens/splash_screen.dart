@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../features/auth/session_controller.dart';
+import '../theme/bizbite_theme.dart';
 
 /// Full-screen boot phase shown while [SessionController.boot] runs.
 ///
@@ -31,26 +32,38 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
 
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.storefront, size: 72, color: scheme.primary),
-          SizedBox(height: 16),
-          Text(
-            'BizBite',
-            style: theme.textTheme.headlineMedium,
-            selectionColor: scheme.onSurface,
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(gradient: AppGradients.page),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                height: 72,
+                width: 72,
+                decoration: const BoxDecoration(
+                    gradient: AppGradients.brandIndigo,
+                    shape: BoxShape.circle),
+                child: const Icon(Icons.storefront_rounded,
+                    size: 36, color: Colors.white),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Text('BizBite', style: theme.textTheme.headlineMedium),
+              const SizedBox(height: AppSpacing.sm),
+              Text('Loading your outlet…',
+                  style: theme.textTheme.bodyLarge
+                      ?.copyWith(color: AppColors.muted)),
+              const SizedBox(height: AppSpacing.lg),
+              const SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(strokeWidth: 3),
+              ),
+            ],
           ),
-          SizedBox(height: 8),
-          Text(
-            'Loading your outlet…',
-            style: theme.textTheme.bodyLarge,
-            selectionColor: scheme.onSurfaceVariant,
-          ),
-        ],
+        ),
       ),
     );
   }

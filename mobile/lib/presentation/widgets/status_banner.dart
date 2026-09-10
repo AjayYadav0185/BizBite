@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/bizbite_theme.dart';
+
 /// Single-line error / success / info banner used across POS flows.
 ///
 /// Renders as a full-width tinted strip; an empty [text] renders nothing.
@@ -18,28 +20,33 @@ class StatusBanner extends StatelessWidget {
     if (text.isEmpty) return SizedBox.shrink();
 
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+
+    final bg = error ? AppColors.errorBg : AppColors.successBg;
+    final fg = error ? AppColors.error : AppColors.successDeep;
 
     return Container(
-      padding: EdgeInsets.all(12),
-      color: error ? scheme.errorContainer : scheme.primaryContainer,
+      margin: const EdgeInsets.only(top: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
       width: double.infinity,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: fg.withValues(alpha: 0.25)),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         spacing: 8,
         children: [
           Icon(
-            error ? Icons.error : Icons.check_circle,
+            error ? Icons.error_outline_rounded : Icons.check_circle_rounded,
             size: 18,
-            color: error ? scheme.onErrorContainer : scheme.onPrimaryContainer,
+            color: fg,
           ),
           Expanded(
             child: Text(
               text,
               maxLines: 3,
-              style: theme.textTheme.bodyMedium,
-              selectionColor:
-                  error ? scheme.onErrorContainer : scheme.onPrimaryContainer,
+              style: theme.textTheme.bodyMedium?.copyWith(color: fg),
             ),
           ),
         ],
