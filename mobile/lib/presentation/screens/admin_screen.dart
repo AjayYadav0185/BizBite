@@ -693,7 +693,7 @@ class _AdminScreenState extends State<AdminScreen> {
         children: [
           Expanded(
             child: Text(
-              item.name as String,
+              item.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style:
@@ -701,7 +701,7 @@ class _AdminScreenState extends State<AdminScreen> {
             ),
           ),
           Text(
-            inr(item.price as num),
+            inr(item.price),
             style: const TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w800,
@@ -767,3 +767,479 @@ class _AdminScreenState extends State<AdminScreen> {
       ],
     );
   }
+
+  // --- Admin mutations (add / edit / delete) ----------------------------------
+
+  /// `120.0` → `120`, `49.5` → `49.50` — for pre-filling the price field.
+  String _priceText(double price) =>
+      price % 1 == 0 ? price.toInt().toString() : price.toStringAsFixed(2);
+
+  /// Bottom sheet to add a new item (pass [categoryId]) or edit an existing
+  /// one (pass [editItem]). Admin-only — every caller is already gated by
+  /// [_isAdmin], and the API enforces `role:admin` server-side.
+  Future<void> _openItemSheet(
+    BuildContext context, {
+    int? categoryId,
+    FoodItemModel? editItem,
+  }) async {
+    if (!_isAdmin) return;
+    final categories = _menu.menu?.categories ?? const <CategoryModel>[];
+    if (categories.isEmpty) {
+      _snack(context, 'Add a category first.', error: true);
+      return;
+    }
+
+    final nameCtrl = TextEditingController(text: editItem?.name ?? '');
+    final priceCtrl = TextEditingController(
+        text: editItem == null ? '' : _priceText(editItem.price));
+    var selectedCategoryId =
+        editItem?.categoryId ?? categoryId ?? categories.first.id;
+    String? validationError;
+
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            10,
+            20,
+            20 + MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: BizBiteTheme.hairline,
+                    borderRadius: BorderRadius.circular(AppRadius.full),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: AppColors.infoBg,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      editItem == null
+                          ? Icons.add_circle_outline_rounded
+                          : Icons.edit_rounded,
+                      size: 20,
+                      color: AppColors.primaryDeep,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    editItem == null ? 'Add menu item' : 'Edit item',
+                    style: const TextStyle(
+                        fontSize: 16.5, fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              TextField(
+                controller: nameCtrl,
+                autofocus: editItem == null,
+                textCapitalization: TextCapitalization.words,
+                decoration: InputDecoration(
+                  labelText: 'Item name',
+                  hintText: 'e.g. Masala Dosa',
+                  prefixIcon: const Icon(Icons.restaurant_rounded, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    borderSide:
+                        const BorderSide(color: AppColors.primary, width: 1.5),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: priceCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(
+                      RegExp(r'^\d{0,6}(\.\d{0,2})?$')),
+                ],
+                decoration: InputDecoration(
+                  labelText: 'Price (₹)',
+                  prefixIcon:
+                      const Icon(Icons.currency_rupee_rounded, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    borderSide:
+                        const BorderSide(color: AppColors.primary, width: 1.5),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int>(
+                initialValue: selectedCategoryId,
+                decoration: InputDecoration(
+                  labelText: 'Category',
+                  prefixIcon: const Icon(Icons.category_rounded, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    borderSide:
+                        const BorderSide(color: AppColors.primary, width: 1.5),
+                  ),
+                ),
+                items: [
+                  for (final category in categories)
+                    DropdownMenuItem(
+                      value: category.id,
+                      child: Text(category.name),
+                    ),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setSheetState(() => selectedCategoryId = value);
+                  }
+                },
+              ),
+              if (validationError != null) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Icon(Icons.error_outline_rounded,
+                        size: 15, color: AppColors.error),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        validationError!,
+                        style: const TextStyle(
+                            fontSize: 12.5, color: AppColors.error),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 20),
+              ListenableBuilder(
+                listenable: _menu,
+                builder: (context, _) {
+                  final busy = _menu.mutating;
+                  return SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.lg),
+                        ),
+                      ),
+                      onPressed: busy
+                          ? null
+                          : () async {
+                              final name = nameCtrl.text.trim();
+                              final price = double.tryParse(
+                                  priceCtrl.text.trim().replaceAll(',', ''));
+                              if (name.isEmpty || price == null || price < 0) {
+                                setSheetState(() => validationError =
+                                    'Enter an item name and a valid price.');
+                                return;
+                              }
+                              final ok = editItem == null
+                                  ? await _menu.addItem(
+                                      categoryId: selectedCategoryId,
+                                      name: name,
+                                      price: price,
+                                    )
+                                  : await _menu.editItem(
+                                      id: editItem.id,
+                                      categoryId: selectedCategoryId,
+                                      name: name,
+                                      price: price,
+                                    );
+                              if (sheetContext.mounted) {
+                                Navigator.pop(sheetContext, ok);
+                              }
+                            },
+                      icon: busy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : Icon(
+                              editItem == null
+                                  ? Icons.add_rounded
+                                  : Icons.check_rounded,
+                              size: 19,
+                            ),
+                      label: Text(
+                        busy
+                            ? 'Saving…'
+                            : editItem == null
+                                ? 'Add item'
+                                : 'Save changes',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 14.5),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    if (saved == true) {
+      _snack(this.context, editItem == null ? 'Item added' : 'Item updated');
+    } else if (_menu.lastMutationError != null) {
+      _snack(this.context, _menu.lastMutationError!, error: true);
+    }
+  }
+
+  /// Bottom sheet to add a category ([categoryId] omitted) or rename one
+  /// (pass [categoryId] + [initialName]). Admin-only.
+  Future<void> _openCategorySheet(
+    BuildContext context, {
+    int? categoryId,
+    String? initialName,
+  }) async {
+    if (!_isAdmin) return;
+    final editing = categoryId != null;
+    final nameCtrl = TextEditingController(text: initialName ?? '');
+    String? validationError;
+
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            10,
+            20,
+            20 + MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: BizBiteTheme.hairline,
+                    borderRadius: BorderRadius.circular(AppRadius.full),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: AppColors.infoBg,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      editing
+                          ? Icons.drive_file_rename_outline_rounded
+                          : Icons.create_new_folder_rounded,
+                      size: 20,
+                      color: AppColors.primaryDeep,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    editing ? 'Rename category' : 'New category',
+                    style: const TextStyle(
+                        fontSize: 16.5, fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              TextField(
+                controller: nameCtrl,
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+                onSubmitted: (_) =>
+                    FocusManager.instance.primaryFocus?.unfocus(),
+                decoration: InputDecoration(
+                  labelText: 'Category name',
+                  hintText: 'e.g. Beverages',
+                  prefixIcon: const Icon(Icons.category_rounded, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    borderSide:
+                        const BorderSide(color: AppColors.primary, width: 1.5),
+                  ),
+                ),
+              ),
+              if (validationError != null) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Icon(Icons.error_outline_rounded,
+                        size: 15, color: AppColors.error),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        validationError!,
+                        style: const TextStyle(
+                            fontSize: 12.5, color: AppColors.error),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 20),
+              ListenableBuilder(
+                listenable: _menu,
+                builder: (context, _) {
+                  final busy = _menu.mutating;
+                  return SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.lg),
+                        ),
+                      ),
+                      onPressed: busy
+                          ? null
+                          : () async {
+                              final name = nameCtrl.text.trim();
+                              if (name.isEmpty) {
+                                setSheetState(() => validationError =
+                                    'Give the category a name.');
+                                return;
+                              }
+                              final ok = editing
+                                  ? await _menu.renameCategory(
+                                      categoryId, name)
+                                  : await _menu.addCategory(name);
+                              if (sheetContext.mounted) {
+                                Navigator.pop(sheetContext, ok);
+                              }
+                            },
+                      icon: busy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : Icon(
+                              editing
+                                  ? Icons.check_rounded
+                                  : Icons.add_rounded,
+                              size: 19,
+                            ),
+                      label: Text(
+                        busy
+                            ? 'Saving…'
+                            : editing
+                                ? 'Save name'
+                                : 'Create category',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 14.5),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    if (saved == true) {
+      _snack(this.context, editing ? 'Category renamed' : 'Category added');
+    } else if (_menu.lastMutationError != null) {
+      _snack(this.context, _menu.lastMutationError!, error: true);
+    }
+  }
+
+  /// Red confirmation dialog, then hard delete through the admin API
+  /// (`DELETE /api/admin/menu-items/{id}`, `role:admin` enforced server-side).
+  Future<void> _confirmDelete(BuildContext context, FoodItemModel item) async {
+    if (!_isAdmin) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Delete item?'),
+        content: Text(
+          '"${item.name}" will be removed from the menu for everyone at this '
+          'store. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final ok = await _menu.removeItem(item.id);
+    if (!mounted) return;
+    if (ok) {
+      _snack(this.context, '"${item.name}" deleted');
+    } else {
+      _snack(
+        this.context,
+        _menu.lastMutationError ?? 'Could not delete item.',
+        error: true,
+      );
+    }
+  }
+}
