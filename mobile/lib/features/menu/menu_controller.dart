@@ -4,14 +4,14 @@ import '../../core/network/api_exception.dart';
 import 'data/models/menu_response_model.dart';
 import 'data/repositories/menu_repository.dart';
 
-/// Loads and caches the store menu (`GET /api/menu`) for the POS grid.
+/// Offline-first menu loader for the POS grid.
 ///
-/// The menu is tenant-scoped and availability-filtered server-side; this
-/// controller simply guards against duplicate fetches and surfaces failures
-/// as a cashier-readable message.
-///
-/// Admin mutations (add/edit/delete) call the admin-only endpoints and then
-/// `refresh()` so the POS grid and Store console stay in sync.
+/// Contract: `load()` paints the last-good SQLite snapshot instantly (works
+/// with zero bars), then refreshes from `GET /api/menu` in the background
+/// and overwrites the cache wholesale (catalog is server-wins LWW).
+/// `source` tells the banner whether the grid is fresh, cached or stale.
+enum MenuSource { cache, syncing, synced, stale }
+
 class MenuController with ChangeNotifier implements Listenable {
   MenuController({required this._repository});
 
@@ -28,24 +28,51 @@ class MenuController with ChangeNotifier implements Listenable {
   /// True while an admin add/edit/delete is in flight (buttons show spinners).
   bool mutating = false;
 
+  MenuSource source = MenuSource.cache;
+
   bool _hasLoaded = false;
 
   bool get isLoaded => menu != null;
+  bool get isStale => source == MenuSource.stale || source == MenuSource.cache;
+  bool get isCacheOnly =>
+      menu != null &&
+      (source == MenuSource.cache || source == MenuSource.stale);
 
-  /// Fetch the menu exactly once. Subsequent calls are no-ops until the
-  /// session is refreshed (a future "refresh" action can set `_hasLoaded =
-  /// false` again).
+  /// Offline-first fetch: cache paints instantly, network refreshes behind.
   Future<void> load() async {
     if (loading || _hasLoaded) return;
     loading = true;
     error = null;
     notifyListeners();
 
+    // 1. Instant paint from SQLite (or empty on first-ever launch).
+    try {
+      final cached = await _repository.loadCached();
+      if (cached.items.isNotEmpty || cached.categories.isNotEmpty) {
+        menu = cached;
+        source = MenuSource.cache;
+        notifyListeners();
+      }
+    } catch (_) {
+      // Corrupt/empty cache: fall through to network attempt.
+    }
+
+    // 2. Background refresh (server-wins). Offline keeps the cache.
+    source = MenuSource.syncing;
+    notifyListeners();
     try {
       menu = await _repository.fetchMenu();
+      source = MenuSource.synced;
       _hasLoaded = true;
+      error = null;
     } on ApiException catch (exception) {
-      error = exception.message;
+      if (menu != null) {
+        source = MenuSource.stale;
+        error = null; // cached grid is usable; banner shows staleness
+      } else {
+        error = exception.message;
+        source = MenuSource.stale;
+      }
     }
 
     loading = false;
@@ -57,12 +84,19 @@ class MenuController with ChangeNotifier implements Listenable {
     _hasLoaded = false;
     loading = true;
     error = null;
+    source = MenuSource.syncing;
     notifyListeners();
     try {
       menu = await _repository.fetchMenu();
+      source = MenuSource.synced;
       _hasLoaded = true;
     } on ApiException catch (exception) {
-      error = exception.message;
+      if (menu != null) {
+        source = MenuSource.stale;
+      } else {
+        error = exception.message;
+        source = MenuSource.stale;
+      }
     }
     loading = false;
     notifyListeners();

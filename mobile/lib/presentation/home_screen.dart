@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart' hide MenuController;
 
+import '../core/sync/sync_controller.dart';
+import '../core/sync/sync_orchestrator.dart';
 import '../features/auth/session_controller.dart';
 import '../features/menu/menu_controller.dart';
 import '../features/orders/cart_controller.dart';
@@ -14,6 +16,7 @@ import 'screens/profile_screen.dart';
 import 'services/print_settings.dart';
 import 'services/receipt_printer.dart';
 import 'theme/bizbite_theme.dart';
+import 'widgets/sync_status_banner.dart';
 
 /// Signed-in shell: a bottom navigation bar switching between the POS
 /// billing screen (everyone) and the read-only store admin screen.
@@ -31,6 +34,8 @@ class HomeScreen extends StatefulWidget {
     required this.checkout,
     required this.printer,
     required this.printSettings,
+    required this.sync,
+    required this.orchestrator,
   });
 
   final SessionController session;
@@ -40,6 +45,8 @@ class HomeScreen extends StatefulWidget {
   final OrderCheckout checkout;
   final ReceiptPrinter printer;
   final PrintSettings printSettings;
+  final SyncController sync;
+  final SyncOrchestrator orchestrator;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -125,7 +132,15 @@ class _HomeScreenState extends State<HomeScreen> {
       drawer: _navDrawer(context, storeName: storeName),
       body: Container(
         decoration: const BoxDecoration(gradient: AppGradients.page),
-        child: _tabIndex == 0 ? pos : admin,
+        child: Column(
+          children: [
+            SyncStatusBanner(
+              sync: widget.sync,
+              onRetry: () => widget.orchestrator.kick(),
+            ),
+            Expanded(child: _tabIndex == 0 ? pos : admin),
+          ],
+        ),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(

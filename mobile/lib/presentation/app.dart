@@ -2,6 +2,10 @@ import 'package:flutter/material.dart' hide MenuController;
 
 import '../core/network/dio_client.dart';
 import '../core/storage/secure_token_storage.dart';
+import '../core/sync/menu_cache_dao.dart';
+import '../core/sync/outbox_dao.dart';
+import '../core/sync/sync_controller.dart';
+import '../core/sync/sync_orchestrator.dart';
 import '../features/auth/data/repositories/auth_repository.dart';
 import '../features/auth/session_controller.dart';
 import '../features/menu/data/repositories/menu_repository.dart';
@@ -21,11 +25,16 @@ import 'theme/bizbite_theme.dart';
 /// Root of the BizBite mobile POS.
 ///
 /// Owns the dependency graph exactly once (network client, secure token
-/// vault, session/menu/cart controllers, checkout + printer services) and
-/// presents a single reactive router:
+/// vault, session/menu/cart controllers, checkout + printer services,
+/// offline-first sync engine) and presents a single reactive router:
 ///
 ///   session ──► (booting → Splash, signedOut → Login, online → portal)
 ///   portal  ──► orderFlow ──► (pending receipt → Receipt, else → Home tabs)
+///
+/// Offline-first wiring (see docs/OFFLINE_FIRST.md):
+///   SyncController (connectivity + banner) + SyncOrchestrator (outbox
+///   replay + menu pull) are created here, the orchestrator is registered
+///   as a singleton, and connectivity events auto-kick a sync.
 ///
 /// Theme: single source `lib/presentation/theme/bizbite_theme.dart`
 /// (spec docs/design/POS_UI_DESIGN_SPEC.md) — Material3 + Poppins,
@@ -47,6 +56,8 @@ class _BizBiteAppState extends State<BizBiteApp> {
   late OrderCheckout _checkout;
   late ReceiptPrinter _printer;
   late PrintSettings _printSettings;
+  late SyncController _sync;
+  late SyncOrchestrator _orchestrator;
   final ThemeProvider _theme = ThemeProvider();
 
   @override
@@ -64,12 +75,39 @@ class _BizBiteAppState extends State<BizBiteApp> {
       authRepository: AuthRepository(client: _client),
       client: _client,
     );
-    _menu = MenuController(repository: MenuRepository(client: _client));
+    final menuRepository = MenuRepository(client: _client);
+    final orderRepository = OrderRepository(client: _client);
+    _menu = MenuController(repository: menuRepository);
     _cart = CartController();
     _orderFlow = OrderFlowController();
-    _checkout = OrderCheckout(repository: OrderRepository(client: _client));
+    _checkout = OrderCheckout(repository: orderRepository);
     _printer = ReceiptPrinter();
     _printSettings = PrintSettings();
+
+    // -- Offline-first sync engine -------------------------------------
+    _sync = SyncController(client: _client);
+    _orchestrator = SyncOrchestrator(
+      client: _client,
+      outbox: OutboxDao(),
+      menuCache: MenuCacheDao(),
+      sync: _sync,
+    );
+    SyncOrchestrator.register(_orchestrator);
+    _sync.onLinkChanged = (hasLink) {
+      if (hasLink) _orchestrator.kick();
+    };
+    _sync.start();
+    // Opportunistic kick on boot (flushes bills queued while app was dead).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _orchestrator.kick();
+      OutboxDao().pendingCount().then(_sync.setPendingCount);
+    });
+  }
+
+  @override
+  void dispose() {
+    _sync.dispose();
+    super.dispose();
   }
 
   Widget _authScreen() {
@@ -105,6 +143,8 @@ class _BizBiteAppState extends State<BizBiteApp> {
           checkout: _checkout,
           printer: _printer,
           printSettings: _printSettings,
+          sync: _sync,
+          orchestrator: _orchestrator,
         );
       },
     );

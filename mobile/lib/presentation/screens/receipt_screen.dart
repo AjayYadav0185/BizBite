@@ -90,51 +90,74 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
   }
 
   /// Success Green banner — the paid/settled status signal.
+  /// Offline bills render an amber "queued" variant (LOCAL-XXXX).
   Widget _statusHeader() {
+    final isOffline = widget.receipt.isOffline;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: BizBiteTheme.successContainer,
+        color: isOffline
+            ? AppColors.warningBg
+            : BizBiteTheme.successContainer,
         borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.check_circle_rounded,
+          Icon(
+            isOffline
+                ? Icons.wifi_off_rounded
+                : Icons.check_circle_rounded,
             size: 28,
-            color: BizBiteTheme.success,
+            color: isOffline
+                ? AppColors.warningDeep
+                : BizBiteTheme.success,
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Payment received',
+                Text(
+                  isOffline ? 'Saved offline — will sync' : 'Payment received',
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.successDeep,
+                    color: isOffline
+                        ? AppColors.warningDeep
+                        : AppColors.successDeep,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   '${widget.receipt.paymentMode.label} · Bill #${widget.receipt.orderNumber}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.successDeep,
+                    color: isOffline
+                        ? AppColors.warningDeep
+                        : AppColors.successDeep,
                   ),
                 ),
+                if (isOffline)
+                  const Text(
+                    'Queued locally — auto-syncs when online. Same bill, no duplicates.',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.warningDeep,
+                    ),
+                  ),
                 if (_printStatus.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
                     _printStatus,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: AppColors.successDeep,
+                      color: isOffline
+                          ? AppColors.warningDeep
+                          : AppColors.successDeep,
                     ),
                   ),
                 ],

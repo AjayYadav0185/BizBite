@@ -41,6 +41,7 @@ class OrderReceiptModel extends Equatable {
     this.orderType = OrderType.takeaway,
     this.customerName = '',
     this.upiRef = '',
+    this.isOffline = false,
   });
 
   final int orderId;
@@ -60,6 +61,10 @@ class OrderReceiptModel extends Equatable {
   final OrderType orderType;
   final String customerName;
   final String upiRef;
+
+  /// True when this receipt was built locally from the cart while offline
+  /// (LOCAL-XXXX, `status: pending_sync`). Never serialized to the server.
+  final bool isOffline;
 
   factory OrderReceiptModel.fromJson(Map<String, dynamic> json) {
     return OrderReceiptModel(
@@ -112,5 +117,6 @@ class OrderReceiptModel extends Equatable {
         orderType,
         customerName,
         upiRef,
+        isOffline,
       ];
 }

@@ -3,29 +3,52 @@ import 'package:dio/dio.dart';
 import '../../../../core/config/api_config.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/network/dio_client.dart';
+import '../../../../core/sync/menu_cache_dao.dart';
 import '../../../../core/utils/parse_utils.dart';
 import '../models/category_model.dart';
 import '../models/food_item_model.dart';
 import '../models/menu_response_model.dart';
 
-/// Thin typed wrapper over `GET /api/menu`.
+/// Offline-first menu gateway.
 ///
-/// The backend already constrains categories + items to the caller's store
-/// (global StoreScope), filters availability and pre-sorts, so this class only
-/// maps JSON onto the typed [MenuResponseModel].
+/// Read path: SQLite last-good cache first (instant POS grid, works in a
+/// basement with zero bars), then a background refresh overwrites the cache
+/// wholesale — catalog is server-wins (LWW), the admin panel is the sole
+/// writer, so no merge is ever needed.
 class MenuRepository {
-  MenuRepository({required this._client});
+  MenuRepository({required this._client, MenuCacheDao? cache})
+      : _cache = cache ?? MenuCacheDao();
 
   final DioClient _client;
+  final MenuCacheDao _cache;
 
+  MenuCacheDao get cache => _cache;
+
+  /// Fetch from network and persist to cache. Throws [ApiException] offline
+  /// so callers can fall back to [loadCached].
   Future<MenuResponseModel> fetchMenu() async {
     try {
       final response = await _client.get<dynamic>(ApiConfig.menu);
-      return MenuResponseModel.fromJson(toMap(response.data));
+      final menu = MenuResponseModel.fromJson(toMap(response.data));
+      await _cache.replaceAll(
+        categories: menu.categories,
+        items: menu.items,
+      );
+      return menu;
     } on DioException catch (error) {
       throw apiExceptionFrom(error);
     }
   }
+
+  /// Instant, offline-safe read of the last-good snapshot.
+  Future<MenuResponseModel> loadCached() async {
+    final categories = await _cache.readCategories();
+    final items = await _cache.readItems();
+    return MenuResponseModel(categories: categories, items: items);
+  }
+
+  Future<bool> get hasCache => _cache.hasCache;
+  Future<DateTime?> get lastSyncAt => _cache.lastSyncAt;
 
   /// Admin-only: create a category. 403 when a cashier token calls it.
   Future<CategoryModel> createCategory({required String name}) async {
@@ -75,7 +98,15 @@ class MenuRepository {
         },
       );
       final map = toMap(response.data['item']);
-      return FoodItemModel.fromJson(map.isEmpty ? toMap(response.data) : map);
+      if (map.isEmpty) {
+        return FoodItemModel(
+          id: 0,
+          categoryId: categoryId,
+          name: name.trim(),
+          price: price,
+        );
+      }
+      return FoodItemModel.fromJson(map);
     } on DioException catch (error) {
       throw apiExceptionFrom(error);
     }

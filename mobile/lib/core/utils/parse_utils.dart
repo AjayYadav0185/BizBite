@@ -18,10 +18,11 @@ int toInt(dynamic value, {int fallback = 0}) {
   return fallback;
 }
 
-String toNullableString(dynamic value) {
-  if (value == null) return '';
+String toNullableString(dynamic value, {String fallback = ''}) {
+  if (value == null) return fallback;
   final s = value.toString().trim();
-  return s.toLowerCase() == 'null' ? '' : s;
+  if (s.isEmpty || s.toLowerCase() == 'null') return fallback;
+  return s;
 }
 
 Map<String, dynamic> toMap(dynamic value) {

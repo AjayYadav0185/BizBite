@@ -322,6 +322,8 @@ class _PosScreenState extends State<PosScreen> {
 
       widget.cart.clear();
       // Close the bill sheet (if open) so the receipt screen takes over.
+      // Offline receipts (LOCAL-XXXX) flow through the same path — the
+      // OrderCheckout already queued the payload, so this is a success.
       if (_billSheetOpen && mounted) {
         Navigator.of(context, rootNavigator: true).pop();
       }
