@@ -30,11 +30,15 @@ class UserModel extends Equatable {
     required this.email,
     required this.role,
     required this.storeId,
+    this.phone = '',
   });
 
   final int id;
   final String name;
   final String email;
+
+  /// Contact number of the staff member (self-editable via /api/profile).
+  final String phone;
   final UserRole role;
   final int storeId;
 
@@ -45,6 +49,7 @@ class UserModel extends Equatable {
       id: intFromJson(json['id']),
       name: stringFromJson(json['name']),
       email: stringFromJson(json['email']),
+      phone: stringFromJson(json['phone']),
       role: userRoleFromJson(json['role']?.toString()),
       storeId: intFromJson(json['store_id']),
     );
@@ -54,6 +59,7 @@ class UserModel extends Equatable {
         'id': id,
         'name': name,
         'email': email,
+        if (phone.isNotEmpty) 'phone': phone,
         'role': role.name,
         'store_id': storeId,
       };
@@ -64,5 +70,5 @@ class UserModel extends Equatable {
   static String stringFromJson(dynamic value) => value?.toString() ?? '';
 
   @override
-  List<Object?> get props => [id, name, email, role, storeId];
+  List<Object?> get props => [id, name, email, phone, role, storeId];
 }

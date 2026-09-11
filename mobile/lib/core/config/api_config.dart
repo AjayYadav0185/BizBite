@@ -37,6 +37,10 @@ class ApiConfig {
   static const String menu = '/menu';
   static const String orders = '/orders';
 
+  /// Self-service profile management (own details only).
+  static const String profile = '/profile';
+  static const String profilePassword = '/profile/password';
+
   // Admin-only menu writes (role:admin, see routes/api.php).
   static const String categories = '/categories';
   static String category(int id) => '/categories/$id';

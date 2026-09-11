@@ -6,8 +6,10 @@ import '../features/orders/cart_controller.dart';
 import '../features/orders/order_checkout.dart';
 import '../features/orders/order_flow_controller.dart';
 import '../features/orders/data/models/order_receipt_model.dart';
+import '../features/auth/data/repositories/auth_repository.dart';
 import 'screens/admin_screen.dart';
 import 'screens/pos_screen.dart';
+import 'screens/profile_screen.dart';
 import 'services/receipt_printer.dart';
 import 'theme/bizbite_theme.dart';
 
@@ -34,6 +36,7 @@ class HomeScreen extends StatefulWidget {
   final OrderFlowController orderFlow;
   final OrderCheckout checkout;
   final ReceiptPrinter printer;
+  final DioClient client;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -280,6 +283,25 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: () {
                 _selectTab(1);
                 Navigator.of(context).pop();
+              },
+            ),
+            const SizedBox(height: 10),
+            _navTile(
+              context,
+              icon: Icons.person_outline_rounded,
+              title: 'My Profile',
+              subtitle: 'Edit name, phone & password',
+              selected: false,
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ProfileScreen(
+                      session: widget.session,
+                      authRepository: AuthRepository(client: _client),
+                    ),
+                  ),
+                );
               },
             ),
             const Spacer(),

@@ -70,4 +70,44 @@ class AuthRepository {
       throw apiExceptionFrom(error);
     }
   }
+
+  /// PUT /api/profile — update own display name / phone number.
+  /// Returns the refreshed profile exactly as the server stored it.
+  Future<UserModel> updateProfile({
+    required String name,
+    required String phone,
+  }) async {
+    try {
+      final response = await _client.put<dynamic>(
+        ApiConfig.profile,
+        data: {
+          'name': name.trim(),
+          if (phone.trim().isNotEmpty) 'phone': phone.trim(),
+        },
+      );
+      return UserModel.fromJson(toMap(toMap(response.data)['user']));
+    } on DioException catch (error) {
+      throw apiExceptionFrom(error);
+    }
+  }
+
+  /// PUT /api/profile/password — change own password (server re-checks the
+  /// current one; 422 with field errors on a wrong current password).
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      await _client.put<dynamic>(
+        ApiConfig.profilePassword,
+        data: {
+          'current_password': currentPassword,
+          'password': newPassword,
+          'password_confirmation': newPassword,
+        },
+      );
+    } on DioException catch (error) {
+      throw apiExceptionFrom(error);
+    }
+  }
 }

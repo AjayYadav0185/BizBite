@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\MenuAdminController;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\OrderApiController;
+use App\Http\Controllers\Api\ProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -61,4 +62,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Accepts GET/POST/DELETE so Flutter, browsers and API clients never
     // hit a 405 "Method Not Allowed" at logout time.
     Route::match(['get', 'post', 'delete'], '/logout', [AuthController::class, 'logout']);
+
+    // Self-service profile management (own details only — never role /
+    // store_id / email, which stay owner-controlled like the web portal).
+    Route::get('/profile', [ProfileController::class, 'show']);
+    Route::put('/profile', [ProfileController::class, 'update']);
+    Route::put('/profile/password', [ProfileController::class, 'password']);
 });

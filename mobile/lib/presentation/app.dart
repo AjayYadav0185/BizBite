@@ -98,6 +98,7 @@ class _BizBiteAppState extends State<BizBiteApp> {
           orderFlow: _orderFlow,
           checkout: _checkout,
           printer: _printer,
+          client: _client,
         );
       },
     );

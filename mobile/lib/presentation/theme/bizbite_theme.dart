@@ -526,29 +526,33 @@ class BizAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ),
       ),
-      title: Row(children: [
-        Flexible(
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md, vertical: 6),
-            decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(AppRadius.full),
-                border: Border.all(color: AppColors.border),
-                boxShadow: AppShadows.card),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: const BoxDecoration(
-                    gradient: AppGradients.brandMain, shape: BoxShape.circle),
-                child: const Icon(Icons.storefront_rounded,
-                    color: Colors.white, size: 18),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              // Flexible + ellipsis: a long store name shrinks to the
-              // available app-bar width instead of overflowing it.
-              Flexible(
+      title: Flexible(
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md, vertical: 6),
+          decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.full),
+              border: Border.all(color: AppColors.border),
+              boxShadow: AppShadows.card),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: const BoxDecoration(
+                  gradient: AppGradients.brandMain, shape: BoxShape.circle),
+              child: const Icon(Icons.storefront_rounded,
+                  color: Colors.white, size: 18),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            // Constrained-column text: a long store name shrinks to the
+            // available app-bar width instead of overflowing it (no
+            // black/yellow overflow stripes ever again).
+            ConstrainedBox(
+              constraints: const BoxConstraints(
+                  maxWidth: 220, minWidth: 0),
+              child: SizedBox(
+                width: double.infinity,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
@@ -570,10 +574,10 @@ class BizAppBar extends StatelessWidget implements PreferredSizeWidget {
                   ],
                 ),
               ),
-            ]),
-          ),
+            ),
+          ]),
         ),
-      ]),
+      ),
       actions: actions,
     );
   }

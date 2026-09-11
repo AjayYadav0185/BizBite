@@ -227,6 +227,39 @@ class SessionController with ChangeNotifier implements Listenable {
     _setPhase(SessionPhase.signedOut);
   }
 
+  /// Self-service profile update — persists own name/phone on the server,
+  /// refreshes the local + vaulted profile, and notifies the UI.
+  ///
+  /// Returns the refreshed [UserModel]; throws [ApiException] on failure
+  /// (422 validation / network), which the profile screen surfaces inline.
+  Future<UserModel> updateProfile({
+    required String name,
+    required String phone,
+  }) async {
+    final fresh = await _auth.updateProfile(name: name, phone: phone);
+    user = fresh;
+    try {
+      await _tokenStore.saveCachedUser(json.encode(fresh.toJson()));
+    } catch (_) {
+      // Vault write failure must not fail an otherwise successful update —
+      // the background revalidation re-caches it on the next launch anyway.
+    }
+    notifyListeners();
+    return fresh;
+  }
+
+  /// Self-service password change — server verifies the current password
+  /// (422 on a wrong one) and hashes the new one. No local state changes.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _auth.changePassword(
+      currentPassword: currentPassword,
+      newPassword: newPassword,
+    );
+  }
+
   /// Fired by the ErrorInterceptor when any authenticated call returns 401.
   void handleSessionExpired() {
     user = null;
