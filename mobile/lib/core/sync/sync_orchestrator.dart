@@ -145,7 +145,16 @@ class SyncOrchestrator {
         ),
       );
     } catch (error) {
-      if (!completer.isCompleted) completer.completeError(error);
+      // Never let kick()'s future complete with an error: it is fired
+      // unawaited from connectivity listeners and the post-frame boot hook,
+      // so a DB hiccup would surface as an unhandled async exception.
+      // The banner already carries the failure via [sync.setLastError].
+      sync.setLastError(apiExceptionFrom(error).message);
+      if (!completer.isCompleted) {
+        completer.complete(
+          SyncResult(synced: synced, failed: 0, pending: 0),
+        );
+      }
     } finally {
       _running = false;
       _inflight = null;

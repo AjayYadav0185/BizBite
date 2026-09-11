@@ -27,7 +27,16 @@ class AuthInterceptor extends Interceptor {
     final isAbsoluteUrl = Uri.parse(options.path).hasScheme;
 
     if (!isLoginCall && !isAbsoluteUrl) {
-      final token = await _tokenStorage.readToken();
+      // The vault can throw after a force-kill (Android AEADBadTagException,
+      // missing macOS keychain entitlements). That must degrade to an
+      // anonymous request (the server answers 401) — never hang or abort
+      // the interceptor chain, which would freeze every loading spinner.
+      String? token;
+      try {
+        token = await _tokenStorage.readToken();
+      } catch (_) {
+        token = null;
+      }
 
       if (token != null && token.isNotEmpty) {
         options.headers['Authorization'] = 'Bearer $token';

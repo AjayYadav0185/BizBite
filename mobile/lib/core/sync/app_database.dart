@@ -9,6 +9,8 @@
 // WAL mode is enabled for lunch-rush write throughput. All money is stored
 // as REAL here only because the wire models use double; settlement math
 // always happens server-side in OrderService.
+import 'dart:async';
+
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -21,12 +23,29 @@ class AppDatabase {
 
   Database? _db;
 
+  /// Single-flight open: `MenuRepository.loadCached()`, `SyncOrchestrator.kick()`
+  /// and `OutboxDao.pendingCount()` all hit this getter concurrently on boot.
+  /// A plain lazy getter would call `openDatabase()` twice for the same file
+  /// ("database is locked" → uncaught → loading spinners never resolve).
+  Completer<Database>? _opening;
+
   Future<Database> get db async {
     final existing = _db;
     if (existing != null) return existing;
-    final created = await _open();
-    _db = created;
-    return created;
+    final opening = _opening;
+    if (opening != null) return opening.future;
+
+    final completer = Completer<Database>();
+    _opening = completer;
+    _open().then((database) {
+      _db = database;
+      completer.complete(database);
+    }).catchError((Object error, StackTrace stackTrace) {
+      // Allow the next caller to retry the open from scratch.
+      _opening = null;
+      completer.completeError(error, stackTrace);
+    });
+    return completer.future;
   }
 
   Future<Database> _open() async {

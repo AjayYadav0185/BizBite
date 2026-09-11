@@ -65,7 +65,11 @@ class MenuController with ChangeNotifier implements Listenable {
       source = MenuSource.synced;
       _hasLoaded = true;
       error = null;
-    } on ApiException catch (exception) {
+    } catch (rawError) {
+      // Catch ALL failures (ApiException, sqflite errors, parse drift, …).
+      // A raw escape here would skip `loading = false` and leave the POS
+      // grid hanging on the "Loading menu…" spinner forever.
+      final exception = apiExceptionFrom(rawError);
       if (menu != null) {
         source = MenuSource.stale;
         error = null; // cached grid is usable; banner shows staleness
@@ -90,7 +94,9 @@ class MenuController with ChangeNotifier implements Listenable {
       menu = await _repository.fetchMenu();
       source = MenuSource.synced;
       _hasLoaded = true;
-    } on ApiException catch (exception) {
+    } catch (rawError) {
+      // Same all-failures contract as [load] — never leave a spinner up.
+      final exception = apiExceptionFrom(rawError);
       if (menu != null) {
         source = MenuSource.stale;
       } else {
@@ -112,8 +118,10 @@ class MenuController with ChangeNotifier implements Listenable {
       await action();
       await refresh();
       return true;
-    } on ApiException catch (exception) {
-      lastMutationError = exception.message;
+    } catch (error) {
+      // Server errors, DB errors, anything — surface as a snackbar instead
+      // of an unhandled exception (mutating is always released below).
+      lastMutationError = apiExceptionFrom(error).message;
       return false;
     } finally {
       mutating = false;

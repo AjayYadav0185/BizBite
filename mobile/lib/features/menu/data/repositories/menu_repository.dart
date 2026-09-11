@@ -26,18 +26,34 @@ class MenuRepository {
 
   /// Fetch from network and persist to cache. Throws [ApiException] offline
   /// so callers can fall back to [loadCached].
+  ///
+  /// The cache write is best-effort and deliberately OUTSIDE the network
+  /// try/catch: a sqflite hiccup must never turn a successful fetch into a
+  /// thrown DatabaseException (that leaked raw and left `loading` stuck true).
   Future<MenuResponseModel> fetchMenu() async {
+    final MenuResponseModel menu;
     try {
       final response = await _client.get<dynamic>(ApiConfig.menu);
-      final menu = MenuResponseModel.fromJson(toMap(response.data));
+      menu = MenuResponseModel.fromJson(toMap(response.data));
+    } on DioException catch (error) {
+      throw apiExceptionFrom(error);
+    }
+
+    try {
       await _cache.replaceAll(
         categories: menu.categories,
         items: menu.items,
       );
-      return menu;
-    } on DioException catch (error) {
-      throw apiExceptionFrom(error);
+    } catch (error) {
+      // Grid stays correct for this session (menu is already parsed);
+      // next successful fetch rewrites the cache.
+      assert(() {
+        // ignore: avoid_print
+        print('MenuCacheDao.replaceAll failed: $error');
+        return true;
+      }());
     }
+    return menu;
   }
 
   /// Instant, offline-safe read of the last-good snapshot.

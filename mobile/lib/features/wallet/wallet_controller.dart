@@ -55,8 +55,10 @@ class WalletController with ChangeNotifier implements Listenable {
     try {
       snapshot = await _repository.balance();
       error = null;
-    } on ApiException catch (exception) {
-      error = exception.message;
+    } catch (rawError) {
+      // Catch ALL failures (not just ApiException) — a raw escape would skip
+      // `loading = false` and leave the wallet dashboard spinning forever.
+      error = apiExceptionFrom(rawError).message;
     }
 
     loading = false;
