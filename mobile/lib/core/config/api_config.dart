@@ -37,6 +37,12 @@ class ApiConfig {
   static const String menu = '/menu';
   static const String orders = '/orders';
 
+  // Admin-only menu writes (role:admin, see routes/api.php).
+  static const String categories = '/categories';
+  static String category(int id) => '/categories/$id';
+  static const String menuItems = '/menu/items';
+  static String menuItem(int id) => '/menu/items/$id';
+
   /// Network timeouts tuned for outlet Wi-Fi (can be flaky during rush hour).
   static const Duration connectTimeout = Duration(seconds: 15);
   static const Duration sendTimeout = Duration(seconds: 20);

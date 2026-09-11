@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\MenuAdminController;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\OrderApiController;
 use Illuminate\Http\Request;
@@ -44,6 +45,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // (transaction + server-side price snapshotting + per-day bill number).
     Route::post('/orders', [OrderApiController::class, 'store'])
         ->middleware('role:admin,cashier');
+
+    // Admin-only menu writes for the Flutter Store console.
+    // Reads stay on GET /api/menu; writes mirror Livewire MenuManager
+    // validation and are tenant-scoped via the global StoreScope.
+    Route::middleware('role:admin')->group(function () {
+        Route::post('/categories', [MenuAdminController::class, 'storeCategory']);
+        Route::put('/categories/{id}', [MenuAdminController::class, 'updateCategory'])->whereNumber('id');
+        Route::post('/menu/items', [MenuAdminController::class, 'storeItem']);
+        Route::put('/menu/items/{id}', [MenuAdminController::class, 'updateItem'])->whereNumber('id');
+        Route::delete('/menu/items/{id}', [MenuAdminController::class, 'destroyItem'])->whereNumber('id');
+    });
 
     // ANY /api/logout — revokes the token used for the current request.
     // Accepts GET/POST/DELETE so Flutter, browsers and API clients never
