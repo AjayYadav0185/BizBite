@@ -4,6 +4,8 @@ import '../../../../core/config/api_config.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../core/utils/parse_utils.dart';
+import '../models/category_model.dart';
+import '../models/food_item_model.dart';
 import '../models/menu_response_model.dart';
 
 /// Thin typed wrapper over `GET /api/menu`.

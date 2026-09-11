@@ -101,8 +101,13 @@ class _PosScreenState extends State<PosScreen> {
   }
 
   Widget _menu() {
+    // React to BOTH the menu controller and the cart controller — the item
+    // cards' "marked" state (brand border + qty badge) is computed from cart
+    // lines at build time, so the grid must rebuild on every cart change.
+    // Previously it only listened to `menu`, so after the first add the
+    // badges went stale (new items were billed but never marked).
     return ListenableBuilder(
-      listenable: widget.menu,
+      listenable: Listenable.merge([widget.menu, widget.cart]),
       builder: (context, _) {
         return MenuPane(
           menu: widget.menu,
