@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' hide MenuController;
 
 import '../features/auth/session_controller.dart';
@@ -9,6 +11,7 @@ import '../features/orders/data/models/order_receipt_model.dart';
 import 'screens/admin_screen.dart';
 import 'screens/pos_screen.dart';
 import 'screens/profile_screen.dart';
+import 'services/print_settings.dart';
 import 'services/receipt_printer.dart';
 import 'theme/bizbite_theme.dart';
 
@@ -27,6 +30,7 @@ class HomeScreen extends StatefulWidget {
     required this.orderFlow,
     required this.checkout,
     required this.printer,
+    required this.printSettings,
   });
 
   final SessionController session;
@@ -35,6 +39,7 @@ class HomeScreen extends StatefulWidget {
   final OrderFlowController orderFlow;
   final OrderCheckout checkout;
   final ReceiptPrinter printer;
+  final PrintSettings printSettings;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -54,6 +59,28 @@ class _HomeScreenState extends State<HomeScreen> {
     widget.session.logout();
   }
 
+  /// Preview-OFF path: send the settled bill straight to the Bluetooth
+  /// printer without leaving the billing grid. Fails soft via snackbar —
+  /// the till never blocks on printer reachability.
+  Future<void> _autoPrint(OrderReceiptModel receipt) async {
+    final ok = await widget.printer.printReceipt(receipt);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'Bill ${receipt.orderNumber} sent to printer.'
+              : widget.printer.lastError.isNotEmpty
+              ? widget.printer.lastError
+              : 'Printing failed.',
+        ),
+        backgroundColor: ok
+            ? AppColors.successDeep
+            : Theme.of(context).colorScheme.error,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final storeName = widget.session.store?.name ?? 'BizBite';
@@ -64,8 +91,15 @@ class _HomeScreenState extends State<HomeScreen> {
       cart: widget.cart,
       checkout: widget.checkout,
       onSettled: (OrderReceiptModel receipt) {
-        // Root router listens to orderFlow and swaps in the receipt screen.
-        widget.orderFlow.showReceipt(receipt);
+        if (widget.printSettings.previewBeforePrint) {
+          // Preview ON: route to the receipt screen (preview + Print Bill).
+          widget.orderFlow.showReceipt(receipt);
+        } else {
+          // Preview OFF (rush-hour mode): skip the preview — stay on the
+          // billing grid and send the bill straight to the Bluetooth
+          // printer in the background. Fails soft via snackbar.
+          unawaited(_autoPrint(receipt));
+        }
       },
     );
     final AdminScreen admin = AdminScreen(
@@ -293,13 +327,16 @@ class _HomeScreenState extends State<HomeScreen> {
               context,
               icon: Icons.person_outline_rounded,
               title: 'My Profile',
-              subtitle: 'Edit name, phone & password',
+              subtitle: 'Account, password & receipt print',
               selected: false,
               onTap: () {
                 Navigator.of(context).pop();
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => ProfileScreen(session: widget.session),
+                    builder: (_) => ProfileScreen(
+                      session: widget.session,
+                      printSettings: widget.printSettings,
+                    ),
                   ),
                 );
               },

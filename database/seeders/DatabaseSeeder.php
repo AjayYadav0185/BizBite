@@ -29,7 +29,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $store = Store::factory()->create([
-            'name' => 'Apna Zaika - North Indian Food Outlet',
+            'name' => 'Apna Zaika',
             'phone' => '+91 98110 45678',
             'alternate_phone' => '+91 11 2745 8899',
             'address' => 'Shop No. 12, Main Market, Model Town, New Delhi 110009',
@@ -50,18 +50,18 @@ class DatabaseSeeder extends Seeder
         User::factory()->create([
             'store_id' => $store->id,
             'name' => 'Rajesh Sharma',
-            'email' => 'admin@mail.com',
+            'email' => 'admin@gmail.com',
             'phone' => '+91 98110 45678',
-            'password' => 'password',
+            'password' => 'p',
             'role' => UserRole::Admin,
         ]);
 
         User::factory()->create([
             'store_id' => $store->id,
             'name' => 'Priya Verma',
-            'email' => 'cashier@mail.com',
+            'email' => 'cashier@gmail.com',
             'phone' => '+91 98990 12345',
-            'password' => 'password',
+            'password' => 'p',
             'role' => UserRole::Cashier,
         ]);
 

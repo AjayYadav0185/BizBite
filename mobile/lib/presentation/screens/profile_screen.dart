@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/network/api_exception.dart';
 import '../../features/auth/session_controller.dart';
+import '../services/print_settings.dart';
 import '../theme/bizbite_theme.dart';
 import '../widgets/status_banner.dart';
 
@@ -9,11 +10,17 @@ import '../widgets/status_banner.dart';
 ///
 /// Edits own display name / phone (`PUT /profile`) and password
 /// (`PUT /profile/password`) via [SessionController] so the vaulted +
-/// in-memory profile stays in sync automatically.
+/// in-memory profile stays in sync automatically. Also hosts the
+/// till-level [PrintSettings] toggle (receipt preview vs. direct print).
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key, required this.session});
+  const ProfileScreen({
+    super.key,
+    required this.session,
+    required this.printSettings,
+  });
 
   final SessionController session;
+  final PrintSettings printSettings;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -158,11 +165,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: Container(
         decoration: const BoxDecoration(gradient: AppGradients.page),
         child: ListenableBuilder(
-          listenable: _session,
+          listenable: Listenable.merge([_session, widget.printSettings]),
           builder: (context, _) => ListView(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 32),
             children: [
               _identityCard(),
+              const SizedBox(height: 12),
+              _printingCard(),
               const SizedBox(height: 12),
               _profileCard(),
               const SizedBox(height: 12),
@@ -237,6 +246,106 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   color: _session.isAdmin
                       ? AppColors.successDeep
                       : AppColors.slate500,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _printingCard() {
+    final preview = widget.printSettings.previewBeforePrint;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppShadows.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: AppColors.infoBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.receipt_long_rounded,
+                  size: 20,
+                  color: AppColors.primaryDeep,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Receipt printing',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Preview stage between order and print',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch.adaptive(
+                value: preview,
+                activeThumbColor: AppColors.primary,
+                onChanged: (value) =>
+                    widget.printSettings.setPreviewBeforePrint(value),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: preview ? AppColors.infoBg : AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  preview ? Icons.visibility_outlined : Icons.bolt_rounded,
+                  size: 18,
+                  color: preview ? AppColors.primaryDeep : AppColors.slate500,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    preview
+                        ? 'ON — settle → receipt preview → tap Print Bill. '
+                              'Best when you verify each bill first.'
+                        : 'OFF — settle → bill prints straight away, no '
+                              'preview. Billing grid stays ready for the next '
+                              'customer (rush-hour mode).',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.slate500,
+                    ),
+                  ),
                 ),
               ],
             ),

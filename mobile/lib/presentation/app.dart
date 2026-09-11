@@ -14,6 +14,7 @@ import 'home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/receipt_screen.dart';
 import 'screens/splash_screen.dart';
+import 'services/print_settings.dart';
 import 'services/receipt_printer.dart';
 import 'theme/bizbite_theme.dart';
 
@@ -45,6 +46,7 @@ class _BizBiteAppState extends State<BizBiteApp> {
   late OrderFlowController _orderFlow;
   late OrderCheckout _checkout;
   late ReceiptPrinter _printer;
+  late PrintSettings _printSettings;
   final ThemeProvider _theme = ThemeProvider();
 
   @override
@@ -67,6 +69,7 @@ class _BizBiteAppState extends State<BizBiteApp> {
     _orderFlow = OrderFlowController();
     _checkout = OrderCheckout(repository: OrderRepository(client: _client));
     _printer = ReceiptPrinter();
+    _printSettings = PrintSettings();
   }
 
   Widget _authScreen() {
@@ -83,6 +86,9 @@ class _BizBiteAppState extends State<BizBiteApp> {
       listenable: _orderFlow,
       builder: (context, child) {
         final receipt = _orderFlow.pendingReceipt;
+        // A settled-while-preview-ON receipt always shows its preview screen
+        // (toggling the switch mid-preview never yanks it away — the new
+        // value applies to the *next* bill, decided in HomeScreen._onSettled).
         if (receipt != null) {
           return ReceiptScreen(
             receipt: receipt,
@@ -98,6 +104,7 @@ class _BizBiteAppState extends State<BizBiteApp> {
           orderFlow: _orderFlow,
           checkout: _checkout,
           printer: _printer,
+          printSettings: _printSettings,
         );
       },
     );
