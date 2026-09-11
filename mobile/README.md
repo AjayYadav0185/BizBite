@@ -1,4 +1,4 @@
-# bizbite_mobile
+# BizBite
 
 A new Flutter project.
 

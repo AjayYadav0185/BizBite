@@ -9,10 +9,15 @@ import '../../features/orders/data/models/order_receipt_model.dart';
 /// Renders an [OrderReceiptModel] to raw ESC/POS bytes and pushes them to a
 /// Bluetooth thermal printer.
 ///
-/// Mirrors the browser "print receipt" step of the Livewire POS: identical
-/// store branding, itemized rows and totals appear on the mobile till. If no
-/// printer is reachable the receipt is still available on-screen — printing
-/// fails soft and never blocks the billing flow.
+/// Byte-for-byte mirror of the Laravel `#thermal-paper` block
+/// (`resources/views/livewire/pos/billing-dashboard.blade.php`): same line
+/// order, same 32-col `--------------------------------` rules, same
+/// `<qty> x <name>` rows, same owner template lines (`print_header` /
+/// `print_footer` from the web Receipt Customizer). Mirrors the browser
+/// "print receipt" step of the Livewire POS: identical store branding,
+/// itemized rows and totals appear on the mobile till. If no printer is
+/// reachable the receipt is still available on-screen — printing fails
+/// soft and never blocks the billing flow.
 class ReceiptPrinter {
   /// True when the thermal generator is ready (ESC/POS profile loaded).
   bool isReady = false;
@@ -31,81 +36,77 @@ class ReceiptPrinter {
 
   /// Build the raw ESC/POS byte stream for a settled receipt.
   ///
-  /// Uses the 80mm paper profile (48 chars/line) which matches the web POS
-  /// print block; swap to `PaperSize.mm58` for pocket printers.
+  /// Same template as the Laravel `#thermal-paper` block: header template →
+  /// store name/address/phone → 32-col rule → `Bill: <n>` + date →
+  /// cashier → rule → `<qty> x <name>` rows → rule → TOTAL / Paid-via →
+  /// rule → footer template → branding.
   Future<List<int>> _buildBytes(OrderReceiptModel receipt) async {
     final profile = await CapabilityProfile.load(name: 'default');
     final generator = Generator(PaperSize.mm80, profile);
 
     final bytes = <int>[];
 
-    void text(String line,
-        {bool bold = false,
-        PosAlign align = PosAlign.left,
-        PosTextSize size = PosTextSize.size1}) {
-      bytes.addAll(generator.text(
-        line,
-        styles: PosStyles(bold: bold, align: align, height: size, width: size),
-        linesAfter: 0,
-      ));
+    void text(
+      String line, {
+      bool bold = false,
+      PosAlign align = PosAlign.left,
+      PosTextSize size = PosTextSize.size1,
+    }) {
+      bytes.addAll(
+        generator.text(
+          line,
+          styles: PosStyles(
+            bold: bold,
+            align: align,
+            height: size,
+            width: size,
+          ),
+          linesAfter: 0,
+        ),
+      );
     }
 
-    void divider() => text('----------------------------------------------');
+    void divider() => text('--------------------------------');
 
-    // --- Header: store branding ------------------------------------------
+    // --- Header: Laravel owner template lines (Receipt Customizer) --------
     if (receipt.store.printHeader.isNotEmpty) {
-      text(receipt.store.printHeader, bold: true, align: PosAlign.center);
+      text(
+        receipt.store.printHeader.toUpperCase(),
+        bold: true,
+        align: PosAlign.center,
+      );
     }
-    text(receipt.store.name, bold: true, align: PosAlign.center);
+    text(receipt.store.name.toUpperCase(), bold: true, align: PosAlign.center);
     if (receipt.store.address.isNotEmpty) {
       text(receipt.store.address, align: PosAlign.center);
     }
     if (receipt.store.phone.isNotEmpty) {
       text('Ph: ${receipt.store.phone}', align: PosAlign.center);
     }
-    bytes.addAll(generator.emptyLines(1));
     divider();
 
-    // --- Bill meta --------------------------------------------------------
-    text('Bill #${receipt.orderNumber}', bold: true);
-    text('Date: ${receipt.placedAt}');
-    text('Cashier: ${receipt.cashier}');
-    text('Order: ${receipt.orderType.label}');
-
-    if (receipt.customerName.isNotEmpty) {
-      text('Customer: ${receipt.customerName}');
-    }
-    if (receipt.upiRef.isNotEmpty) {
-      text('UPI Ref: ${receipt.upiRef}');
+    // --- Bill meta: `Bill: <n>` + date row, cashier below (web shape) ------
+    text('Bill: ${receipt.orderNumber}  ${receipt.placedAt}');
+    if (receipt.cashier.isNotEmpty) {
+      text('Cashier: ${receipt.cashier}');
     }
     divider();
 
-    // --- Items ------------------------------------------------------------
-    text('ITEM                QTY   AMOUNT', bold: true);
+    // --- Items: `<qty> x <name>` … `<subtotal>` (web shape) ----------------
     for (final item in receipt.items) {
-      final name = item.foodItemName.length > 20
-          ? item.foodItemName.substring(0, 19)
-          : item.foodItemName;
-      text(name);
-      text(
-        '${item.quantity.toString().padRight(3)} x '
-        'Rs.${item.price.toStringAsFixed(2).padLeft(8)}'
-        '   Rs.${item.subtotal.toStringAsFixed(2).padLeft(8)}',
-        align: PosAlign.left,
-      );
+      text('${item.quantity} x ${item.foodItemName}');
+      text('  ${item.subtotal.toStringAsFixed(2)}', align: PosAlign.right);
     }
     divider();
 
-    // --- Totals -----------------------------------------------------------
-    text('TOTAL ITEMS : ${receipt.totalQuantity}');
-    text('PAYABLE     : Rs.${receipt.totalAmount.toStringAsFixed(2)}',
-        bold: true);
-    text('PAID BY     : ${receipt.paymentMode.label}');
+    // --- Totals: TOTAL / Paid-via rows (web shape) -------------------------
+    text('TOTAL  Rs. ${receipt.totalAmount.toStringAsFixed(2)}', bold: true);
+    text('Paid via  ${receipt.paymentMode.label.toUpperCase()}');
+    divider();
 
-    // --- Footer -----------------------------------------------------------
-    bytes.addAll(generator.emptyLines(1));
+    // --- Footer: Laravel owner template lines (Receipt Customizer) ---------
     if (receipt.store.printFooter.isNotEmpty) {
-      text(receipt.store.printFooter, align: PosAlign.center, bold: true);
+      text(receipt.store.printFooter, align: PosAlign.center);
     }
     text('Powered by BizBite', align: PosAlign.center);
 
