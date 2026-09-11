@@ -24,6 +24,15 @@ abstract class TokenStore {
 
   Future<void> deleteCachedUser();
 
+  /// Cache the serialized store branding/profile block so a cold start can
+  /// show the outlet the user belongs to instantly (login returns it, but it
+  /// is not re-served by `GET /api/user`).
+  Future<void> saveCachedStore(String storeJson);
+
+  Future<String?> readCachedStore();
+
+  Future<void> deleteCachedStore();
+
   /// Full session wipe.
   Future<void> clearSession();
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide MenuController;
 
 import '../../core/network/api_exception.dart';
+import '../../core/utils/device_info.dart';
 import '../../features/auth/session_controller.dart';
 import '../../features/menu/menu_controller.dart';
 import '../../features/orders/cart_controller.dart';
@@ -52,6 +53,11 @@ class _PosScreenState extends State<PosScreen> {
   String _error = '';
   bool _settling = false;
   bool _billSheetOpen = false;
+
+  /// Idempotency key of the settlement currently (or last) in flight. Kept
+  /// across a network-timeout retry so the server dedupes the bill instead
+  /// of placing a second one on flaky outlet Wi-Fi.
+  String? _idempotencyKey;
 
   @override
   Widget build(BuildContext context) {
@@ -297,6 +303,10 @@ class _PosScreenState extends State<PosScreen> {
   Future<void> _settle() async {
     if (_settling || widget.cart.isEmpty) return;
 
+    // Fresh key per new settlement; the same key survives a timeout-retry.
+    _idempotencyKey ??= DeviceInfo.newIdempotencyKey();
+
+    if (!mounted) return;
     setState(() {
       _settling = true;
       _error = '';
@@ -307,6 +317,7 @@ class _PosScreenState extends State<PosScreen> {
         cart: widget.cart,
         paymentMode: widget.cart.paymentMode,
         orderType: widget.cart.orderType,
+        idempotencyKey: _idempotencyKey,
       );
 
       widget.cart.clear();
@@ -315,28 +326,46 @@ class _PosScreenState extends State<PosScreen> {
         Navigator.of(context, rootNavigator: true).pop();
       }
       widget.onSettled?.call(receipt);
-      setState(() {
-        _settling = false;
-        _discount = TextEditingController();
-        _customer = TextEditingController();
-        _phone = TextEditingController();
-        _upiRef = TextEditingController();
-      });
-    } on ApiException catch (error) {
-      setState(() {
-        _settling = false;
-        _error = error.message;
-      });
-      // The bill sheet lives on another route and won't rebuild with this
-      // state — surface the failure as a snackbar too.
+
+      // Known outcome — the retry guard is released only now.
+      _idempotencyKey = null;
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error.message),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
+        setState(() {
+          _settling = false;
+          _discount = TextEditingController();
+          _customer = TextEditingController();
+          _phone = TextEditingController();
+          _upiRef = TextEditingController();
+        });
       }
+    } on ApiException catch (error) {
+      _failSettlement(error.message);
+    } catch (_) {
+      // Receipt-parse / unexpected wire drift must NEVER leave the checkout
+      // button stuck on "Processing…" — surface it like any other failure.
+      _failSettlement(
+        'Checkout failed unexpectedly. Please review the bill and try again.',
+      );
     }
+  }
+
+  /// Shared failure path: releases the spinner, shows the reason in the bill
+  /// pane and as a snackbar (the bill sheet lives on another route and won't
+  /// rebuild with this state).
+  void _failSettlement(String message) {
+    _idempotencyKey = null;
+
+    if (!mounted) return;
+    setState(() {
+      _settling = false;
+      _error = message;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ),
+    );
   }
 }

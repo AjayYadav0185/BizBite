@@ -19,6 +19,7 @@ class OrderCheckout {
     required CartController cart,
     required PaymentMode paymentMode,
     required OrderType orderType,
+    String? idempotencyKey,
   }) async {
     return _repository.place(
       PlaceOrderRequest(
@@ -31,7 +32,12 @@ class OrderCheckout {
         customerName: cart.customerName,
         customerPhone: cart.customerPhone,
         upiRef: cart.upiRef,
-        idempotencyKey: DeviceInfo.newIdempotencyKey(),
+        // Callers holding a key across a network retry let the server dedupe
+        // the bill; callers without one get a fresh key per settlement.
+        idempotencyKey:
+            (idempotencyKey != null && idempotencyKey.trim().isNotEmpty)
+                ? idempotencyKey.trim()
+                : DeviceInfo.newIdempotencyKey(),
       ),
     );
   }

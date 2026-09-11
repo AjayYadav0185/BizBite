@@ -79,6 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
         title: storeName,
         subtitle: _tabIndex == 0 ? 'Pay Desk' : 'Store Console',
         actions: [
+          ..._userChip(),
           IconButton(
             icon: const Icon(Icons.logout_rounded, size: 20),
             tooltip: 'Sign out',
@@ -114,6 +115,63 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _selectTab(int index) {
     setState(() => _tabIndex = index);
+  }
+
+  /// Signed-in user chip for the app bar (avatar initial + first name) so
+  /// the active login is visible on every launch — including cold starts
+  /// where the session was restored from the device vault.
+  List<Widget> _userChip() {
+    final user = widget.session.user;
+    if (user == null) return const [];
+
+    final name = user.name.trim();
+    final firstName = name.split(' ').first;
+    final initial = firstName.isEmpty ? '?' : firstName[0].toUpperCase();
+
+    return [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 26,
+              height: 26,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                gradient: AppGradients.brandMain,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                initial,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              firstName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.ink,
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
+        ),
+      ),
+      const SizedBox(width: 6),
+    ];
   }
 
   /// Side menu opened by the round menu button in `BizAppBar` (the app bar

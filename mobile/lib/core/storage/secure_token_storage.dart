@@ -21,6 +21,7 @@ class SecureTokenStorage extends TokenStore {
 
   static const String _tokenKey = 'bizbite.auth.token.v1';
   static const String _cachedUserKey = 'bizbite.auth.user.v1';
+  static const String _cachedStoreKey = 'bizbite.auth.store.v1';
 
   final FlutterSecureStorage _storage;
 
@@ -55,11 +56,25 @@ class SecureTokenStorage extends TokenStore {
   @override
   Future<void> deleteCachedUser() => _storage.delete(key: _cachedUserKey);
 
+  /// Cache the serialized store branding block alongside the session.
+  @override
+  Future<void> saveCachedStore(String storeJson) => _storage.write(
+        key: _cachedStoreKey,
+        value: storeJson,
+      );
+
+  @override
+  Future<String?> readCachedStore() => _storage.read(key: _cachedStoreKey);
+
+  @override
+  Future<void> deleteCachedStore() => _storage.delete(key: _cachedStoreKey);
+
   /// Full session wipe.
   @override
   Future<void> clearSession() async {
     await _storage.delete(key: _tokenKey);
     await _storage.delete(key: _cachedUserKey);
+    await _storage.delete(key: _cachedStoreKey);
   }
 
   /// True when the device holds a token (used by the splash/boot flow).

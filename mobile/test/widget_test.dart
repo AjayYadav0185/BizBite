@@ -7,21 +7,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:bizbite_mobile/core/network/dio_client.dart';
-import 'package:bizbite_mobile/core/storage/secure_token_storage.dart';
-import 'package:bizbite_mobile/core/storage/token_store.dart';
-import 'package:bizbite_mobile/features/auth/data/repositories/auth_repository.dart';
-import 'package:bizbite_mobile/features/auth/session_controller.dart';
-import 'package:bizbite_mobile/features/menu/data/models/food_item_model.dart';
-import 'package:bizbite_mobile/features/orders/cart_controller.dart';
-import 'package:bizbite_mobile/features/orders/data/models/order_models.dart';
-import 'package:bizbite_mobile/presentation/screens/login_screen.dart';
-import 'package:bizbite_mobile/presentation/theme/bizbite_theme.dart';
+import 'package:BizBite/core/network/dio_client.dart';
+import 'package:BizBite/core/storage/secure_token_storage.dart';
+import 'package:BizBite/core/storage/token_store.dart';
+import 'package:BizBite/features/auth/data/repositories/auth_repository.dart';
+import 'package:BizBite/features/auth/session_controller.dart';
+import 'package:BizBite/features/menu/data/models/food_item_model.dart';
+import 'package:BizBite/features/orders/cart_controller.dart';
+import 'package:BizBite/features/orders/data/models/order_models.dart';
+import 'package:BizBite/presentation/screens/login_screen.dart';
+import 'package:BizBite/presentation/theme/bizbite_theme.dart';
 
 /// In-memory TokenStore so tests never touch Keychain/Keystore.
 class _MemoryTokenStore extends TokenStore {
   String? token;
   String? cachedUser;
+  String? cachedStore;
 
   @override
   Future<void> saveToken(String value) async => token = value;
@@ -42,9 +43,20 @@ class _MemoryTokenStore extends TokenStore {
   Future<void> deleteCachedUser() async => cachedUser = null;
 
   @override
+  Future<void> saveCachedStore(String storeJson) async =>
+      cachedStore = storeJson;
+
+  @override
+  Future<String?> readCachedStore() async => cachedStore;
+
+  @override
+  Future<void> deleteCachedStore() async => cachedStore = null;
+
+  @override
   Future<void> clearSession() async {
     token = null;
     cachedUser = null;
+    cachedStore = null;
   }
 
   @override
@@ -145,7 +157,10 @@ void main() {
     final light = BizBiteTheme.light();
     final dark = BizBiteTheme.dark();
     expect(light.colorScheme.primary, AppColors.primary);
-    expect(dark.colorScheme.primary, AppColors.primaryDark);
+    // Light-only decision: `dark()` is aliased to the light combo so a
+    // system dark setting can never produce the mixed dark/light scheme.
+    expect(dark.colorScheme.primary, AppColors.primary);
+    expect(dark.colorScheme.brightness, Brightness.light);
     expect(light.useMaterial3, isTrue);
     expect(light.textTheme.bodyMedium?.fontFamily, isNotNull);
   });
