@@ -72,8 +72,8 @@ class _BizBiteAppState extends State<BizBiteApp> {
   Widget _authScreen() {
     return switch (_session.phase) {
       SessionPhase.booting => SplashScreen(session: _session),
-      SessionPhase.signedOut || SessionPhase.signingIn =>
-        LoginScreen(session: _session),
+      SessionPhase.signedOut ||
+      SessionPhase.signingIn => LoginScreen(session: _session),
       SessionPhase.online => SizedBox.shrink(),
     };
   }
@@ -98,7 +98,6 @@ class _BizBiteAppState extends State<BizBiteApp> {
           orderFlow: _orderFlow,
           checkout: _checkout,
           printer: _printer,
-          client: _client,
         );
       },
     );
@@ -113,12 +112,11 @@ class _BizBiteAppState extends State<BizBiteApp> {
         theme: BizBiteTheme.light(),
         darkTheme: BizBiteTheme.dark(),
         themeMode: _theme.mode,
-        home: _session.phase == SessionPhase.online
-            ? _portal()
-            : _authScreen(),
+        home: _session.phase == SessionPhase.online ? _portal() : _authScreen(),
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context)
-              .copyWith(textScaler: TextScaler.noScaling),
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.noScaling),
           child: child!,
         ),
       ),

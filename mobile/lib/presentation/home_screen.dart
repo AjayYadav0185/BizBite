@@ -6,7 +6,6 @@ import '../features/orders/cart_controller.dart';
 import '../features/orders/order_checkout.dart';
 import '../features/orders/order_flow_controller.dart';
 import '../features/orders/data/models/order_receipt_model.dart';
-import '../features/auth/data/repositories/auth_repository.dart';
 import 'screens/admin_screen.dart';
 import 'screens/pos_screen.dart';
 import 'screens/profile_screen.dart';
@@ -36,7 +35,6 @@ class HomeScreen extends StatefulWidget {
   final OrderFlowController orderFlow;
   final OrderCheckout checkout;
   final ReceiptPrinter printer;
-  final DioClient client;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -97,7 +95,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-            color: Colors.white, boxShadow: AppShadows.bar),
+          color: Colors.white,
+          boxShadow: AppShadows.bar,
+        ),
         child: BottomNavigationBar(
           items: const [
             BottomNavigationBarItem(
@@ -212,8 +212,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       gradient: AppGradients.brandMain,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.storefront_rounded,
-                        color: Colors.white, size: 22),
+                    child: const Icon(
+                      Icons.storefront_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -296,10 +299,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.of(context).pop();
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => ProfileScreen(
-                      session: widget.session,
-                      authRepository: AuthRepository(client: _client),
-                    ),
+                    builder: (_) => ProfileScreen(session: widget.session),
                   ),
                 );
               },
@@ -414,8 +414,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color:
-                        selected ? BizBiteTheme.brand : AppColors.surfaceMuted,
+                    color: selected
+                        ? BizBiteTheme.brand
+                        : AppColors.surfaceMuted,
                     borderRadius: BorderRadius.circular(11),
                   ),
                   child: Icon(
@@ -434,8 +435,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w800,
-                          color:
-                              selected ? AppColors.primaryDeep : AppColors.ink,
+                          color: selected
+                              ? AppColors.primaryDeep
+                              : AppColors.ink,
                         ),
                       ),
                       const SizedBox(height: 1),
