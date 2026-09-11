@@ -62,6 +62,8 @@ final class OrderReceipt
         public readonly ?string $upiRef = null,
         public readonly ?string $customerName = null,
         public readonly ?string $customerPhone = null,
+        public readonly string $walletDeduction = '0.00',
+        public readonly ?string $walletBalanceAfter = null,
     ) {}
 
     /**
@@ -94,6 +96,9 @@ final class OrderReceipt
             'upi_ref' => $this->upiRef ?? $this->order->upi_ref,
             'customer_name' => $this->customerName ?? $this->order->customer_name,
             'customer_phone' => $this->customerPhone ?? $this->order->customer_phone,
+            // Customer Wallet: 1% points movement for this bill.
+            'wallet_deduction' => $this->walletDeduction,
+            'wallet_balance_after' => $this->walletBalanceAfter,
             'store' => [
                 'name' => $this->storeName,
                 'phone' => $this->storePhone,
@@ -133,6 +138,8 @@ final class OrderReceipt
         ?string $printHeader = null,
         ?string $printFooter = null,
         ?string $cashierName = null,
+        string $walletDeduction = '0.00',
+        ?string $walletBalanceAfter = null,
     ): self {
         return new self(
             order: $order,
@@ -164,6 +171,8 @@ final class OrderReceipt
             upiRef: $order->upi_ref,
             customerName: $order->customer_name,
             customerPhone: $order->customer_phone,
+            walletDeduction: $walletDeduction,
+            walletBalanceAfter: $walletBalanceAfter,
         );
     }
 }

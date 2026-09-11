@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../features/orders/cart_controller.dart';
 import '../../features/orders/data/models/cart_line.dart';
 import '../../features/orders/data/models/order_models.dart';
+import '../../features/wallet/wallet_controller.dart';
 import '../theme/bizbite_theme.dart';
 import '../widgets/amount.dart';
 import '../widgets/status_banner.dart';
@@ -36,11 +37,17 @@ class CartPane extends StatelessWidget {
     required this.onPhoneChanged,
     required this.onUpiRefChanged,
     required this.onSettle,
+    this.wallet,
   });
 
   final CartController cart;
   final String error;
   final bool settling;
+
+  /// Customer Wallet — when provided, the bill summary highlights the 1%
+  /// points deduction ("Wallet Discount Applied (1%)") exactly as the
+  /// server will debit it on settlement.
+  final WalletController? wallet;
   final TextEditingController discountController;
   final TextEditingController customerController;
   final TextEditingController phoneController;
@@ -467,10 +474,71 @@ class CartPane extends StatelessWidget {
         if (cart.effectiveDiscount > 0)
           row('Discount', '-${inr(cart.effectiveDiscount)}',
               color: BizBiteTheme.success),
+        // Customer Wallet — highlight the 1% points deduction exactly as
+        // the server will debit it (capped at the available balance).
+        if (wallet != null && cart.payable > 0)
+          _walletRow(context, cart.payable),
         // NOTE: Tax rows render here automatically once the backend returns
         // tax breakdown fields on POST /api/orders (hooks reserved in
         // POS_UI_DESIGN_SPEC.md).
       ],
+    );
+  }
+
+  /// "Wallet Discount Applied (1%)" — points that will be debited for this
+  /// bill, plus the balance remaining afterwards. Rendered only when a
+  /// wallet is wired in (POS billing).
+  Widget _walletRow(BuildContext context, double payable) {
+    final deduction = wallet!.deductionPreviewFor(payable);
+    if (deduction <= 0) return const SizedBox.shrink();
+
+    final after = wallet!.balance - deduction;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 6, bottom: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.infoBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: BizBiteTheme.brand.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.account_balance_wallet_rounded,
+              size: 15, color: BizBiteTheme.brand),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Wallet Discount Applied (1%)',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    color: BizBiteTheme.brandDeep,
+                  ),
+                ),
+                Text(
+                  'Deducts ${deduction.toStringAsFixed(2)} pts · balance after ${after.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppColors.muted,
+                  ).merge(BizBiteTheme.numeral),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '-${deduction.toStringAsFixed(2)} pts',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: BizBiteTheme.brandDeep,
+            ).merge(BizBiteTheme.numeral),
+          ),
+        ],
+      ),
     );
   }
 

@@ -22,12 +22,12 @@ Short reference for the UI system only (colors, theme, components, patterns).
 > Palette mirrors the BizBite **web POS console**: food-outlet emerald green
 > over charcoal slate, warm amber warnings, red errors. Editing this section
 > in `bizbite_theme.dart` re-skins the whole app.
-- **Brand (emerald — web POS `emerald-500` CTA):** `primary #10B981`, `primaryDark #34D399` (dark mode), `primaryLight #34D399`, `primarySoft #059669` (emerald-600), `accentTeal #14B8A6`, `skyTeal #0D9488`, `primaryDeep #047857`, `infoBg #ECFDF5` (emerald-50 wash), `accentSoft #6EE7B7` (emerald-300), `purple #8A4FDB`.
+- **Brand (emerald — web POS `emerald-500` CTA):** `primary #0c4f8c`, `primaryDark #34D399` (dark mode), `primaryLight #34D399`, `primarySoft #059669` (emerald-600), `accentTeal #14B8A6`, `skyTeal #0D9488`, `primaryDeep #047857`, `infoBg #ECFDF5` (emerald-50 wash), `accentSoft #6EE7B7` (emerald-300), `purple #8A4FDB`.
 - **Text (web slate scale):** `ink #0F172A` (slate-900), `inkDark #020617` (slate-950), `muted #64748B` (slate-500), `faintMuted #94A3B8` (slate-400), slate scale (`#334155`, `#475569`, `#64748B`, `#94A3B8`, `#1E293B`).
 - **Surfaces:** `background #F5F7F6` (green-white), `surface #FFFFFF`, `surfaceMuted #F0F3F1`, `surfaceSoft #F8FAF8`, `surfaceSoft2 #F1F4F2`, `surfaceSubtle #EBEFED`.
-- **Gradients:** page `gradientStart #F2F6F4 → gradientMid #E6EDE8 → gradientEnd #DCE5DF`; brand emerald `primary #10B981 → primarySoft #059669`; brand charcoal `ink #0F172A → darkSurface #1E293B`.
+- **Gradients:** page `gradientStart #F2F6F4 → gradientMid #E6EDE8 → gradientEnd #DCE5DF`; brand emerald `primary #0c4f8c → primarySoft #059669`; brand charcoal `ink #0F172A → darkSurface #1E293B`.
 - **Borders:** `border #E1E7E3`, `borderLight #E2E8E4`, `borderMuted #CBD5E1`.
-- **Status:** success (emerald "paid") `#10B981/#059669/#34A853`, successBg `#ECFDF5`; warning `#FF8C42/#FF6D00`, warningBg `#FFF3E8`; error (web red) `#EF4444/#F87171/#DC2626`, errorBg `#FEF2F2`; `infoCyan #17A8C4`, `whatsapp #25D366`.
+- **Status:** success (emerald "paid") `#0c4f8c/#059669/#34A853`, successBg `#ECFDF5`; warning `#FF8C42/#FF6D00`, warningBg `#FFF3E8`; error (web red) `#EF4444/#F87171/#DC2626`, errorBg `#FEF2F2`; `infoCyan #17A8C4`, `whatsapp #25D366`.
 - **Dark mode (charcoal, mirrors web slate-950/900/800):** bg `#020617`, cards `#0F172A`, darkSurface `#1E293B`, primary `#34D399`, accents `#6EE7B7`. On-emerald foreground is `inkDark #020617` (dark text on the emerald CTA, exactly like the web console).
 
 ## 4. Typography

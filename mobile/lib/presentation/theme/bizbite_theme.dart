@@ -16,7 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// surfaces; dark mode matches the console's slate-950/900 cards.
 abstract final class AppColors {
   // --- Brand: emerald (web POS emerald-500 CTA & success flash) ----------
-  static const Color primary = Color(0xFF10B981); // emerald-500
+  static const Color primary = Color(0xFF0c4f8c); // emerald-500
   static const Color primaryDark = Color(0xFF34D399); // emerald-400 (dark)
   static const Color primaryLight = Color(0xFF34D399); // emerald-400 (bright)
   static const Color primarySoft = Color(0xFF059669); // emerald-600 (deep)
@@ -54,7 +54,7 @@ abstract final class AppColors {
   static const Color borderMuted = Color(0xFFCBD5E1); // slate-300
 
   // --- Status -----------------------------------------------------------------
-  static const Color success = Color(0xFF10B981); // emerald-500 = paid
+  static const Color success = Color(0xFF0c4f8c); // emerald-500 = paid
   static const Color successDeep = Color(0xFF059669); // emerald-600
   static const Color successAlt = Color(0xFF34A853);
   static const Color successBg = Color(0xFFECFDF5); // emerald-50

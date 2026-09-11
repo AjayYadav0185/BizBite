@@ -36,9 +36,13 @@ use Throwable;
  *     to stay safe under concurrent cashier/Flutter traffic.
  *   - Flutter retries are idempotent: pass `idempotency_key` and a replay
  *     returns the original receipt instead of creating a duplicate bill.
+ *   - Wallet side-effect: 1% of the settled total is debited from the
+ *     cashier's wallet (capped at the available balance) inside the SAME
+ *     transaction, with a `Bill deduction` ledger row.
  */
 final class OrderService
 {
+    public function __construct(private readonly WalletService $wallet) {}
     /**
      * Place (settle) an order.
      *
@@ -225,6 +229,14 @@ final class OrderService
                 ]);
                 $order->setRelation('items', $order->items()->get());
 
+                // Customer Wallet: 1% of the settled total is debited from
+                // the cashier's wallet (capped so it never goes negative).
+                // Runs inside this same transaction — bill + wallet are atomic.
+                // Idempotent replays return early above, so a retry never
+                // double-debits.
+                $walletDeduction = $this->wallet->deductForBill($user, (string) $rounded, $order->id);
+                $walletBalanceAfter = number_format((float) ($user->fresh()->wallet_balance ?? 0), 2, '.', '');
+
                 // Owner audit trail: discounts, credit bills and UPI refs are
                 // the entries the admin reviews (cashier writes, admin reads).
                 if (bccomp($discountAmount, '0', 2) > 0) {
@@ -261,6 +273,8 @@ final class OrderService
                     printHeader: $store->print_header,
                     printFooter: $store->print_footer,
                     cashierName: $user->name,
+                    walletDeduction: $walletDeduction,
+                    walletBalanceAfter: $walletBalanceAfter,
                 );
             }, attempts: 3);
         } catch (OrderPlacementException $exception) {

@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Razorpay checkout + wallet API traffic. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="BizBite"
         android:name="${applicationName}"

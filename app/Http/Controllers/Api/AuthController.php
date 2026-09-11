@@ -6,13 +6,82 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\Audit;
+use App\Services\WalletService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Response;
+use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
+    /**
+     * Register a new customer/user and issue a Sanctum token.
+     *
+     * Body: { "name", "email", "password", "password_confirmation",
+     *         "phone"?, "store_id"? }
+     *
+     * Every new account starts with a 200-point sign-up bonus credited to
+     * `wallet_balance` plus a 'Sign-up bonus' ledger row.
+     */
+    public function register(Request $request, WalletService $wallet): JsonResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'email' => ['required', 'email', 'max:255', 'unique:tbl_pos_users,email'],
+            'password' => ['required', 'string', Password::min(8), 'confirmed'],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'store_id' => ['nullable', 'integer', 'exists:tbl_pos_stores,id'],
+        ]);
+
+        $user = User::query()->create([
+            'store_id' => $data['store_id'] ?? null,
+            'name' => trim($data['name']),
+            'email' => strtolower(trim($data['email'])),
+            'phone' => isset($data['phone']) ? trim($data['phone']) : null,
+            'password' => $data['password'],
+            'role' => \App\Models\Enums\UserRole::Cashier,
+            'is_active' => true,
+            'wallet_balance' => WalletService::SIGNUP_BONUS,
+        ]);
+
+        // Keep the welcome bonus + ledger row in lock-step even if the column
+        // default ever changes.
+        $wallet->grantSignupBonus($user->fresh());
+        $user = $user->fresh();
+
+        // Owner-visible audit rows are scoped to a store. A store-less wallet
+        // customer (registered straight from the mobile app) has no owning
+        // store to audit into — skip rather than 500 on the FK constraint.
+        if ($user->store_id !== null) {
+            Audit::record(
+                $user,
+                AuditLog::ACTION_STAFF_LOGIN,
+                $user->name.' registered a new wallet account (200-point sign-up bonus).',
+                entityType: 'user',
+                entityId: $user->id,
+                entityName: $user->name,
+            );
+        }
+
+        $newToken = $user->createToken('mobile:register', ['*']);
+
+        return Response::json([
+            'message' => 'Registered successfully. 200 wallet points credited.',
+            'token' => $newToken->plainTextToken,
+            'token_type' => 'Bearer',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'role' => $user->role,
+                'store_id' => $user->store_id,
+                'wallet_balance' => number_format((float) ($user->wallet_balance ?? 0), 2, '.', ''),
+            ],
+        ], status: 201);
+    }
+
     /**
      * Log a user in and issue a Sanctum personal access token for the
      * Flutter app (Phase 2).

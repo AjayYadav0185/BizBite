@@ -28,7 +28,7 @@ export default {
                     200: '#A7F3D0',
                     300: '#6EE7B7', // accentSoft (emerald-300)
                     400: '#34D399', // primaryDark / primaryLight
-                    500: '#10B981', // primary / success (emerald-500)
+                    500: '#0c4f8c', // primary / success (emerald-500)
                     600: '#059669', // primarySoft / successDeep
                     700: '#047857', // primaryDeep
                     800: '#065F46',

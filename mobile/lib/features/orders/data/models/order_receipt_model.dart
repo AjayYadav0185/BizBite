@@ -42,6 +42,8 @@ class OrderReceiptModel extends Equatable {
     this.customerName = '',
     this.upiRef = '',
     this.isOffline = false,
+    this.walletDeduction = '0.00',
+    this.walletBalanceAfter,
   });
 
   final int orderId;
@@ -66,6 +68,14 @@ class OrderReceiptModel extends Equatable {
   /// (LOCAL-XXXX, `status: pending_sync`). Never serialized to the server.
   final bool isOffline;
 
+  /// Wallet points debited for this bill — 1% of the settled total
+  /// (`wallet_deduction` from the server receipt, 2dp string).
+  final String walletDeduction;
+
+  /// Caller's wallet balance immediately after the debit (null when the
+  /// backend did not report it, e.g. offline receipts).
+  final String? walletBalanceAfter;
+
   factory OrderReceiptModel.fromJson(Map<String, dynamic> json) {
     return OrderReceiptModel(
       orderId: toInt(json['order_id']),
@@ -83,6 +93,12 @@ class OrderReceiptModel extends Equatable {
       orderType: orderTypeFromJson(json['order_type']?.toString()),
       customerName: toNullableString(json['customer_name']),
       upiRef: toNullableString(json['upi_ref']),
+      // Customer Wallet side-effects of THIS bill (1% points movement).
+      walletDeduction:
+          toNullableString(json['wallet_deduction'], fallback: '0.00'),
+      walletBalanceAfter: (json['wallet_balance_after'] == null)
+          ? null
+          : toNullableString(json['wallet_balance_after']),
     );
   }
 
@@ -100,6 +116,8 @@ class OrderReceiptModel extends Equatable {
         'order_type': orderType.wireValue,
         'customer_name': customerName,
         'upi_ref': upiRef,
+        'wallet_deduction': walletDeduction,
+        'wallet_balance_after': walletBalanceAfter,
       };
 
   @override
@@ -118,5 +136,7 @@ class OrderReceiptModel extends Equatable {
         customerName,
         upiRef,
         isOffline,
+        walletDeduction,
+        walletBalanceAfter,
       ];
 }

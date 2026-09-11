@@ -10,9 +10,11 @@ import '../features/orders/cart_controller.dart';
 import '../features/orders/order_checkout.dart';
 import '../features/orders/order_flow_controller.dart';
 import '../features/orders/data/models/order_receipt_model.dart';
+import '../features/wallet/wallet_controller.dart';
 import 'screens/admin_screen.dart';
 import 'screens/pos_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/wallet_screen.dart';
 import 'services/print_settings.dart';
 import 'services/receipt_printer.dart';
 import 'theme/bizbite_theme.dart';
@@ -36,6 +38,7 @@ class HomeScreen extends StatefulWidget {
     required this.printSettings,
     required this.sync,
     required this.orchestrator,
+    required this.wallet,
   });
 
   final SessionController session;
@@ -47,6 +50,9 @@ class HomeScreen extends StatefulWidget {
   final PrintSettings printSettings;
   final SyncController sync;
   final SyncOrchestrator orchestrator;
+
+  /// Customer Wallet state (balance + Razorpay recharge handshake).
+  final WalletController wallet;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -97,7 +103,10 @@ class _HomeScreenState extends State<HomeScreen> {
       menu: widget.menu,
       cart: widget.cart,
       checkout: widget.checkout,
+      wallet: widget.wallet,
       onSettled: (OrderReceiptModel receipt) {
+        // The 1% wallet debit happened server-side — refresh the dashboard.
+        widget.wallet.refresh();
         if (widget.printSettings.previewBeforePrint) {
           // Preview ON: route to the receipt screen (preview + Print Bill).
           widget.orderFlow.showReceipt(receipt);
@@ -338,6 +347,21 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             const SizedBox(height: 10),
+            _navTile(
+              context,
+              icon: Icons.account_balance_wallet_rounded,
+              title: 'Wallet',
+              subtitle: 'Points, history & recharge',
+              selected: false,
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => WalletScreen(wallet: widget.wallet),
+                  ),
+                );
+              },
+            ),
             _navTile(
               context,
               icon: Icons.person_outline_rounded,

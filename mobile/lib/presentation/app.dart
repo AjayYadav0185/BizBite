@@ -14,6 +14,8 @@ import '../features/orders/cart_controller.dart';
 import '../features/orders/data/repositories/order_repository.dart';
 import '../features/orders/order_checkout.dart';
 import '../features/orders/order_flow_controller.dart';
+import '../features/wallet/data/repositories/wallet_repository.dart';
+import '../features/wallet/wallet_controller.dart';
 import 'home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/receipt_screen.dart';
@@ -58,6 +60,7 @@ class _BizBiteAppState extends State<BizBiteApp> {
   late PrintSettings _printSettings;
   late SyncController _sync;
   late SyncOrchestrator _orchestrator;
+  late WalletController _wallet;
   final ThemeProvider _theme = ThemeProvider();
 
   @override
@@ -83,6 +86,9 @@ class _BizBiteAppState extends State<BizBiteApp> {
     _checkout = OrderCheckout(repository: orderRepository);
     _printer = ReceiptPrinter();
     _printSettings = PrintSettings();
+    _wallet = WalletController(
+      repository: WalletRepository(client: _client),
+    );
 
     // -- Offline-first sync engine -------------------------------------
     _sync = SyncController(client: _client);
@@ -145,6 +151,7 @@ class _BizBiteAppState extends State<BizBiteApp> {
           printSettings: _printSettings,
           sync: _sync,
           orchestrator: _orchestrator,
+          wallet: _wallet,
         );
       },
     );

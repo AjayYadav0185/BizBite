@@ -5,6 +5,8 @@ use App\Http\Controllers\Api\MenuAdminController;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\OrderApiController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\WalletController;
+use App\Http\Controllers\Api\WalletRechargeController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -15,6 +17,7 @@ use Illuminate\Support\Facades\Route;
 // POST /api/login — issues a Sanctum bearer token plus the user profile.
 // Payload: { "email": "...", "password": "..." }
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register']);
 
 // ---------------------------------------------------------------------------
 // Sanctum protected API routes (consumed by the Flutter app in Phase 2)
@@ -68,4 +71,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::put('/profile', [ProfileController::class, 'update']);
     Route::put('/profile/password', [ProfileController::class, 'password']);
+
+    // Customer Wallet (both staff roles — the wallet belongs to the caller).
+    Route::get('/wallet/balance', [WalletController::class, 'balance'])
+        ->middleware('role:admin,cashier');
+    Route::post('/wallet/recharge/initiate', [WalletRechargeController::class, 'initiate'])
+        ->middleware('role:admin,cashier');
+    Route::post('/wallet/recharge/verify', [WalletRechargeController::class, 'verify'])
+        ->middleware('role:admin,cashier');
+
+    // Spec alias: POST /api/bill/generate behaves exactly like POST
+    // /api/orders (bill + 1% wallet deduction in one transaction).
+    Route::post('/bill/generate', [OrderApiController::class, 'store'])
+        ->middleware('role:admin,cashier');
 });

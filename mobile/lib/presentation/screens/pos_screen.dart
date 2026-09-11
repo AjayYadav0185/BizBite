@@ -8,6 +8,7 @@ import '../../features/orders/cart_controller.dart';
 import '../../features/orders/data/models/order_models.dart';
 import '../../features/orders/order_checkout.dart';
 import '../../features/orders/data/models/order_receipt_model.dart';
+import '../../features/wallet/wallet_controller.dart';
 import '../theme/bizbite_theme.dart';
 import '../widgets/amount.dart';
 import 'cart_pane.dart';
@@ -23,6 +24,7 @@ class PosScreen extends StatefulWidget {
     required this.menu,
     required this.cart,
     required this.checkout,
+    required this.wallet,
     this.onSettled,
   });
 
@@ -30,6 +32,9 @@ class PosScreen extends StatefulWidget {
   final MenuController menu;
   final CartController cart;
   final OrderCheckout checkout;
+
+  /// Customer Wallet — used to preview the 1% bill deduction in the cart.
+  final WalletController wallet;
 
   /// Fired with the server receipt after a successful settlement. The app
   /// router listens and swaps to the ReceiptScreen.
@@ -53,6 +58,14 @@ class _PosScreenState extends State<PosScreen> {
   String _error = '';
   bool _settling = false;
   bool _billSheetOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Paint the "Wallet Discount Applied (1%)" row with a real balance —
+    // without this the preview hides until the next settle-refresh.
+    widget.wallet.load();
+  }
 
   /// Idempotency key of the settlement currently (or last) in flight. Kept
   /// across a network-timeout retry so the server dedupes the bill instead
@@ -139,6 +152,7 @@ class _PosScreenState extends State<PosScreen> {
       builder: (context, _) {
         return CartPane(
           cart: widget.cart,
+          wallet: widget.wallet,
           error: _error,
           settling: _settling,
           discountController: _discount,
@@ -279,6 +293,7 @@ class _PosScreenState extends State<PosScreen> {
             listenable: widget.cart,
             builder: (context, _) => CartPane(
               cart: widget.cart,
+              wallet: widget.wallet,
               error: _error,
               settling: _settling,
               discountController: _discount,

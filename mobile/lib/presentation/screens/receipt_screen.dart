@@ -334,6 +334,28 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
             ),
           ],
         ),
+        // --- Customer Wallet: 1% points debited for this bill --------------
+        if (receipt.walletDeduction != '0.00' && receipt.walletDeduction.isNotEmpty)
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Wallet points used (1%)',
+                  style: BizBiteTheme.receiptMono(
+                    size: 12,
+                    weight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Text(
+                '-${receipt.walletDeduction} pts',
+                style: BizBiteTheme.receiptMono(
+                  size: 12,
+                  weight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
         _rule(),
         // --- Footer: Laravel owner template lines ---------------------------
         if (store.printFooter.isNotEmpty)

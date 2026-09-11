@@ -7,7 +7,7 @@
    and tailwind.config.js. Used by inline styles & the Vite build.
 --------------------------------------------------------------------------- */
 :root {
-    --brand: #10B981;
+    --brand: #0c4f8c;
     --brand-light: #34D399;
     --brand-deep: #059669;
     --brand-deepest: #047857;
@@ -23,7 +23,7 @@
     --faint: #94A3B8;
     --hairline: #E1E7E3;
 
-    --success: #10B981;
+    --success: #0c4f8c;
     --warning: #FF8C42;
     --error: #EF4444;
 

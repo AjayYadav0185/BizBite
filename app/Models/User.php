@@ -33,6 +33,7 @@ class User extends Authenticatable
         'role',
         'is_active',
         'last_login_at',
+        'wallet_balance',
     ];
 
     /**
@@ -58,6 +59,7 @@ class User extends Authenticatable
             'role' => \App\Models\Casts\LenientEnumCast::class.':'.UserRole::class,
             'is_active' => 'boolean',
             'last_login_at' => 'datetime',
+            'wallet_balance' => 'decimal:2',
         ];
     }
 
@@ -79,6 +81,24 @@ class User extends Authenticatable
     public function orders()
     {
         return $this->hasMany(Order::class);
+    }
+
+    /**
+     * Wallet ledger entries for this user (newest first when ordered).
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\WalletTransaction>
+     */
+    public function walletTransactions()
+    {
+        return $this->hasMany(WalletTransaction::class);
+    }
+
+    /**
+     * Current wallet points as float (1 point = 1 currency unit).
+     */
+    public function walletBalanceFloat(): float
+    {
+        return (float) ($this->wallet_balance ?? 0);
     }
 
     /**

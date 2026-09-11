@@ -41,6 +41,11 @@ class ApiConfig {
   static const String profile = '/profile';
   static const String profilePassword = '/profile/password';
 
+  // Customer Wallet (see routes/api.php — role:admin,cashier).
+  static const String walletBalance = '/wallet/balance';
+  static const String walletRechargeInitiate = '/wallet/recharge/initiate';
+  static const String walletRechargeVerify = '/wallet/recharge/verify';
+
   // Admin-only menu writes (role:admin, see routes/api.php).
   static const String categories = '/categories';
   static String category(int id) => '/categories/$id';
