@@ -4,7 +4,7 @@
      JS present is the keyboard-shortcut bridge and the `trigger-print`
      listener that opens the native thermal print dialog.
 ====================================================================== --}}
-<div class="flex h-screen flex-col overflow-hidden bg-slate-950 text-slate-100" x-data>
+<div class="flex min-h-screen flex-col overflow-hidden bg-slate-950 pb-14 text-slate-100 lg:pb-0" x-data>
     <style>
         /* ------------------------------------------------------------
            THERMAL PRINT LAYOUT — only #thermal-receipt reaches paper.
@@ -37,12 +37,12 @@
     </style>
 
     {{-- ---------------------------------------------------- TOP BAR --}}
-    <header class="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-5 py-3 print:hidden">
-        <div class="flex items-center gap-3">
-            <span class="grid h-9 w-9 place-items-center rounded-lg bg-emerald-500 font-black text-slate-950">B</span>
-            <div>
-                <p class="text-sm font-bold leading-tight">{{ auth()->user()?->store?->name ?? 'BizBite POS' }}</p>
-                <p class="text-xs text-slate-400">Cashier: {{ auth()->user()?->name }}</p>
+    <header class="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-4 py-3 print:hidden sm:px-5">
+        <div class="flex min-w-0 items-center gap-3">
+            <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-emerald-500 font-black text-slate-950">B</span>
+            <div class="min-w-0">
+                <p class="truncate text-sm font-bold leading-tight">{{ auth()->user()?->store?->name ?? 'BizBite POS' }}</p>
+                <p class="truncate text-xs text-slate-400">Cashier: {{ auth()->user()?->name }}</p>
             </div>
         </div>
 
@@ -60,7 +60,7 @@
     </header>
 
     {{-- ---------------------------------------------------- FLASH --}}
-    <div class="px-5 pt-3 print:hidden">
+    <div class="px-4 pt-3 print:hidden sm:px-5">
         @if ($error)
             <p class="rounded-md bg-red-500/15 px-4 py-2 text-sm font-semibold text-red-300" role="alert">{{ $error }}</p>
         @endif
@@ -70,17 +70,18 @@
     </div>
 
     {{-- ---------------------------------------------------- SPLIT PANE --}}
-    <div class="flex min-h-0 flex-1 gap-5 p-5 print:hidden">
+    <div class="flex flex-col gap-4 p-4 print:hidden sm:p-5 lg:min-h-0 lg:flex-1 lg:flex-row lg:items-stretch lg:gap-5">
+
 
         {{-- LEFT PANE: MENU GRID --}}
-        <section class="flex min-w-0 flex-1 flex-col gap-4">
+        <section class="flex min-w-0 flex-col gap-4 lg:flex-1">
             <div class="flex flex-wrap items-center gap-3">
                 <input
                     id="pos-search"
                     type="search"
                     placeholder="Search menu…  (F4)"
                     wire:model.live.debounce.300ms="search"
-                    class="w-full max-w-xs rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm outline-none focus:border-emerald-500 sm:w-64"
+                    class="w-full max-w-xs rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white outline-none focus:border-emerald-500 sm:w-64"
                 />
 
                 <div class="flex flex-wrap gap-2" role="tablist">
@@ -98,7 +99,7 @@
                 </div>
             </div>
 
-            <div class="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-3 overflow-y-auto pb-4 sm:grid-cols-3 xl:grid-cols-4">
+            <div class="grid auto-rows-min grid-cols-2 gap-3 overflow-y-auto pb-4 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
                 @forelse ($this->menuItems as $item)
                     <button
                         wire:key="menu-{{ $item->id }}"
@@ -118,13 +119,13 @@
         </section>
 
         {{-- RIGHT PANE: LIVE CART --}}
-        <aside class="flex w-[22rem] flex-none flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
+        <aside id="pos-cart" class="mt-4 flex w-full max-h-[34rem] scroll-mt-28 flex-none flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 lg:mt-0 lg:w-[22rem] lg:max-h-none">
             <div class="flex items-center justify-between border-b border-slate-800 px-4 py-3">
                 <h2 class="text-sm font-black uppercase tracking-widest text-slate-300">Current Bill</h2>
                 <span class="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-bold text-emerald-400">{{ $this->cartCount }} items</span>
             </div>
 
-            <ul class="min-h-0 flex-1 divide-y divide-slate-800 overflow-y-auto">
+            <ul class="max-h-72 min-h-0 flex-1 divide-y divide-slate-800 overflow-y-auto lg:max-h-none">
                 @forelse ($cart as $line)
                     <li wire:key="cart-{{ $line['id'] }}" class="flex items-center gap-2 px-4 py-3">
                         <div class="min-w-0 flex-1">
@@ -177,6 +178,18 @@
                 </button>
             </div>
         </aside>
+    </div>
+
+    {{-- MOBILE QUICK-BILL BAR — anchors to the cart panel stacked below on
+         phones/tablets so cashiers can always see the running total. --}}
+    <div class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-800 bg-slate-900/95 px-4 py-3 backdrop-blur-sm print:hidden lg:hidden">
+        <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+                <span class="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-bold text-emerald-400">{{ $this->cartCount }} items</span>
+                <span class="text-sm font-black text-emerald-400">₹{{ $this->cartTotal }}</span>
+            </div>
+            <a href="#pos-cart" class="rounded-lg bg-emerald-500 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-950">View Bill ↓</a>
+        </div>
     </div>
 
     {{-- ---------------------------------------------------- THERMAL RECEIPT --}}

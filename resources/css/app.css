@@ -1,3 +1,60 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   BizBite design tokens — mirror mobile/lib/presentation/theme/bizbite_theme.dart
+   and tailwind.config.js. Used by inline styles & the Vite build.
+--------------------------------------------------------------------------- */
+:root {
+    --brand: #10B981;
+    --brand-light: #34D399;
+    --brand-deep: #059669;
+    --brand-deepest: #047857;
+    --brand-wash: #ECFDF5;
+
+    --canvas: #F5F7F6;
+    --surface: #FFFFFF;
+    --surface-muted: #F0F3F1;
+    --surface-subtle: #EBEFED;
+
+    --ink: #0F172A;
+    --muted: #64748B;
+    --faint: #94A3B8;
+    --hairline: #E1E7E3;
+
+    --success: #10B981;
+    --warning: #FF8C42;
+    --error: #EF4444;
+
+    --radius-card: 16px;
+    --radius-control: 12px;
+    --shadow-card: 0 2px 12px 0 rgba(20, 21, 31, 0.05);
+}
+
+::selection {
+    background-color: var(--brand);
+    color: #fff;
+}
+
+/* Slim, unobtrusive scrollbars inside the POS / admin scroll containers. */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+@supports (selector: ::) {
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 999px;
+        border: 2px solid transparent;
+        background-clip: padding-box;
+    }
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+}
