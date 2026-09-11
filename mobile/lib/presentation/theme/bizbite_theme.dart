@@ -527,37 +527,51 @@ class BizAppBar extends StatelessWidget implements PreferredSizeWidget {
         ),
       ),
       title: Row(children: [
-        Container(
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md, vertical: 6),
-          decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(AppRadius.full),
-              border: Border.all(color: AppColors.border),
-              boxShadow: AppShadows.card),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: const BoxDecoration(
-                  gradient: AppGradients.brandMain, shape: BoxShape.circle),
-              child: const Icon(Icons.storefront_rounded,
-                  color: Colors.white, size: 18),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title.isEmpty ? 'BizBite' : title,
-                  style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.ink)),
-              Text(subtitle.isEmpty ? 'Pay Desk' : subtitle,
-                  style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.muted)),
+        Flexible(
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md, vertical: 6),
+            decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(AppRadius.full),
+                border: Border.all(color: AppColors.border),
+                boxShadow: AppShadows.card),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: const BoxDecoration(
+                    gradient: AppGradients.brandMain, shape: BoxShape.circle),
+                child: const Icon(Icons.storefront_rounded,
+                    color: Colors.white, size: 18),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              // Flexible + ellipsis: a long store name shrinks to the
+              // available app-bar width instead of overflowing it.
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(title.isEmpty ? 'BizBite' : title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.ink)),
+                    Text(subtitle.isEmpty ? 'Pay Desk' : subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.muted)),
+                  ],
+                ),
+              ),
             ]),
-          ]),
+          ),
         ),
       ]),
       actions: actions,
