@@ -23,13 +23,19 @@ class DeviceInfo {
   static const String appVersion = '1.0.0';
 
   /// Fresh v4-style UUID used as the order idempotency key. The server
-  /// dedupes retries on this value, so exact RFC shape is not required.
+  /// dedupes retries on this value; must be RFC-4122 shaped
+  /// (`8-4-4-4-12` hex, 36 chars) to fit the `idempotency_key`
+  /// `varchar(64)` column and any strict validators.
   static String newIdempotencyKey() {
     final random = Random.secure();
     final bytes = List<int>.generate(16, (_) => random.nextInt(256));
 
-    return '${_hex(bytes, 0, 4)}-${_hex(bytes, 4, 2)}-4${_hex(bytes, 6, 1)}-'
-        '${_hex(bytes, 7, 1)}-${_hex(bytes, 8, 8)}';
+    // RFC-4122 v4: version nibble = 4, variant bits = 10xxxxxx.
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+    return '${_hex(bytes, 0, 4)}-${_hex(bytes, 4, 2)}-'
+        '${_hex(bytes, 6, 2)}-${_hex(bytes, 8, 2)}-${_hex(bytes, 10, 6)}';
   }
 
   static String _generateHexId() {

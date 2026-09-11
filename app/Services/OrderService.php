@@ -269,7 +269,7 @@ final class OrderService
             report($exception);
 
             throw new OrderPlacementException(
-                'The bill could not be saved. Please retry checkout.',
+                'The bill could not be saved. Please retry checkout. ('.class_basename($exception).')',
                 500,
                 $exception
             );
