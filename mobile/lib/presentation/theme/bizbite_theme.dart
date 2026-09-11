@@ -176,9 +176,14 @@ abstract final class BizBiteTheme {
   /// Alert Amber — pending kitchen / attention states.
   static const Color alert = AppColors.warning;
 
-  static ThemeData light() => _build(Brightness.light);
+  static ThemeData light() => _build();
 
-  static ThemeData dark() => _build(Brightness.dark);
+  /// Dark is intentionally aliased to light — the app is light-only.
+  /// Even if [ThemeProvider] receives `ThemeMode.dark` (or system resolves
+  /// to dark), the light color combo is returned so there is never a
+  /// dark/light conflict. Keep this alias until a full dark palette is
+  /// designed for every hardcoded `AppColors.ink / Colors.white` widget.
+  static ThemeData dark() => _build();
 
   /// Spec §4 — Poppins text scale (w800 display → w700 labels).
   static TextTheme get baseTextTheme => const TextTheme(
@@ -195,30 +200,29 @@ abstract final class BizBiteTheme {
         labelMedium: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
       );
 
-  static ThemeData _build(Brightness brightness) {
-    final darkMode = brightness == Brightness.dark;
+  static ThemeData _build() {
+    // Light-only: always builds the light combo so dark can never leak a
+    // charcoal palette under widgets hardcoded for light
+    // (`Colors.white` cards, `AppColors.ink` text, page gradient…).
     final scheme = ColorScheme.fromSeed(seedColor: AppColors.primary).copyWith(
-      brightness: brightness,
-      primary: darkMode ? AppColors.primaryDark : AppColors.primary,
-      onPrimary: AppColors.inkDark, // web POS: dark slate text on emerald CTA
+      brightness: Brightness.light,
+      primary: AppColors.primary,
+      onPrimary: Colors.white,
       primaryContainer: AppColors.infoBg,
       onPrimaryContainer: AppColors.ink,
       secondary: AppColors.primarySoft,
       onSecondary: Colors.white,
       secondaryContainer: AppColors.infoBg,
       onSecondaryContainer: AppColors.ink,
-      surface: darkMode ? AppColors.cardDark : AppColors.surface,
-      onSurface: darkMode ? Colors.white : AppColors.ink,
-      onSurfaceVariant: darkMode ? AppColors.faintMuted : AppColors.muted,
-      surfaceContainerLowest: darkMode ? AppColors.cardDark : Colors.white,
-      surfaceContainerLow:
-          darkMode ? AppColors.cardDark : AppColors.surfaceSoft2,
-      surfaceContainer:
-          darkMode ? AppColors.cardDark : AppColors.surfaceMuted,
-      surfaceContainerHigh:
-          darkMode ? AppColors.darkSurface : AppColors.surfaceSubtle,
+      surface: AppColors.surface,
+      onSurface: AppColors.ink,
+      onSurfaceVariant: AppColors.muted,
+      surfaceContainerLowest: Colors.white,
+      surfaceContainerLow: AppColors.surfaceSoft2,
+      surfaceContainer: AppColors.surfaceMuted,
+      surfaceContainerHigh: AppColors.surfaceSubtle,
       outlineVariant: AppColors.border,
-      outline: darkMode ? AppColors.slate500 : AppColors.borderMuted,
+      outline: AppColors.borderMuted,
       error: AppColors.error,
       onError: Colors.white,
       errorContainer: AppColors.errorBg,
@@ -230,8 +234,7 @@ abstract final class BizBiteTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      scaffoldBackgroundColor:
-          darkMode ? AppColors.bgDark : AppColors.background,
+      scaffoldBackgroundColor: AppColors.background,
       splashFactory: InkSparkle.splashFactory,
       textTheme: GoogleFonts.poppinsTextTheme(baseTextTheme),
       // Spec §6 — AppBar transparent, 0 elevation, ink fg + gradient space.
@@ -249,7 +252,7 @@ abstract final class BizBiteTheme {
         ),
       ),
       cardTheme: CardThemeData(
-        color: darkMode ? AppColors.cardDark : Colors.white,
+        color: Colors.white,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         margin: EdgeInsets.zero,
@@ -295,7 +298,7 @@ abstract final class BizBiteTheme {
       // Spec §6 — inputs: filled white, 14/14 pad, radius 12, muted label.
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: darkMode ? AppColors.cardDark : Colors.white,
+        fillColor: Colors.white,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         hintStyle:
@@ -385,12 +388,12 @@ abstract final class BizBiteTheme {
         textColor: AppColors.ink,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: darkMode ? AppColors.bgDark : Colors.white,
+        backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.lg))),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: darkMode ? AppColors.bgDark : Colors.white,
+        backgroundColor: Colors.white,
         showDragHandle: true,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -446,7 +449,9 @@ abstract final class BizBiteTheme {
   }
 }
 
-/// Spec S2 — ThemeMode state + persist + toggle (light→dark→system).
+/// Spec S2 — ThemeMode state + persist. Light-only: every setter normalises
+/// to [ThemeMode.light] so even an old persisted 'dark' value (or system
+/// dark) resolves to the same light color combo — no dark/light conflict.
 class ThemeProvider extends ChangeNotifier {
   // ignore: prefer_initializing_formals
   ThemeProvider({SharedPreferences? prefs}) : _prefs = prefs {
@@ -454,38 +459,31 @@ class ThemeProvider extends ChangeNotifier {
   }
   static const String storeKey = 'app_theme_mode';
   final SharedPreferences? _prefs;
-  ThemeMode _mode = ThemeMode.system;
+  ThemeMode _mode = ThemeMode.light;
   ThemeMode get mode => _mode;
   Future<void> _load() async {
     try {
       final p = _prefs ?? await SharedPreferences.getInstance();
-      final raw = p.getString(storeKey);
-      if (raw == 'light') {
-        _mode = ThemeMode.light;
-      } else if (raw == 'dark') {
-        _mode = ThemeMode.dark;
-      } else {
-        _mode = ThemeMode.system;
-      }
+      // Any stored value (dark/system/legacy) maps to light: single combo.
+      _mode = ThemeMode.light;
+      await p.setString(storeKey, 'light');
       notifyListeners();
     } catch (_) {}
   }
 
   Future<void> setMode(ThemeMode mode) async {
-    _mode = mode;
+    // Intentionally ignores `mode` — light-only app, see class doc.
+    _mode = ThemeMode.light;
     notifyListeners();
     try {
       final p = _prefs ?? await SharedPreferences.getInstance();
-      await p.setString(storeKey,
-          mode == ThemeMode.light ? 'light' : mode == ThemeMode.dark ? 'dark' : 'system');
+      await p.setString(storeKey, 'light');
     } catch (_) {}
   }
 
-  Future<void> toggleTheme() => setMode(_mode == ThemeMode.light
-      ? ThemeMode.dark
-      : _mode == ThemeMode.dark
-          ? ThemeMode.system
-          : ThemeMode.light);
+  Future<void> toggleTheme() async {
+    await setMode(ThemeMode.light);
+  }
 }
 
 /// Spec S7 - app chrome: transparent bar + page gradient, 44px round
