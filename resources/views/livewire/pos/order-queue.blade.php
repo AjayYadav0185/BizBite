@@ -142,7 +142,7 @@
                 @endif
 
                 <div class="mt-2 flex items-center justify-between text-xs text-slate-400">
-                    <span>{{ $order->items->sum('quantity') }} items · {{ $order->created_at?->diffForHumans(now(), short: true) }}</span>
+                    <span>{{ $order->items->sum('quantity') }} items · {{ (int) $order->created_at?->diffInMinutes(now()) }}m ago</span>
                     <span class="font-black text-slate-200">₹{{ $order->total_amount }}</span>
                 </div>
 

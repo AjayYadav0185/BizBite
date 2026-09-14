@@ -388,6 +388,8 @@ final class MenuManager extends Component
 
         $this->cancelItemEdit();
     }
+
+    public function cancelItemEdit(): void
     {
         $this->reset('editingItemId', 'editingItem');
     }
