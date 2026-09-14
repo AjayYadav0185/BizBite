@@ -141,6 +141,25 @@
                     </p>
                 @endif
 
+                <div class="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                    @if (filled($order->table_number))
+                        <span class="rounded-full bg-sky-500/15 px-2 py-0.5 font-bold text-sky-300">Table {{ $order->table_number }}</span>
+                    @endif
+                    <span class="rounded-full bg-slate-800 px-2 py-0.5 font-bold uppercase text-slate-300">{{ $order->payment_mode->value }}</span>
+                    @if (filled($order->campaign_code))
+                        <span class="rounded-full bg-violet-500/15 px-2 py-0.5 font-bold text-violet-300">{{ $order->campaign_code }} −₹{{ $order->campaign_discount }}</span>
+                    @endif
+                    @if (bccomp((string) ($order->refunded_amount ?? '0.00'), '0', 2) > 0)
+                        <span class="rounded-full bg-amber-500/15 px-2 py-0.5 font-bold text-amber-300">Refunded ₹{{ $order->refunded_amount }}</span>
+                    @endif
+                    @if ($order->order_type?->value === 'delivery')
+                        <span class="rounded-full bg-teal-500/15 px-2 py-0.5 font-bold text-teal-300">🚚 {{ $order->delivery_status }}{{ filled($order->delivery_agent) ? ' · '.$order->delivery_agent : '' }}</span>
+                    @endif
+                </div>
+                @if ($order->order_type?->value === 'delivery' && filled($order->delivery_address))
+                    <p class="mt-1.5 text-xs text-slate-400">📍 {{ $order->delivery_address }}</p>
+                @endif
+
                 <div class="mt-2 flex items-center justify-between text-xs text-slate-400">
                     <span>{{ $order->items->sum('quantity') }} items · {{ (int) $order->created_at?->diffInMinutes(now()) }}m ago</span>
                     <span class="font-black text-slate-200">₹{{ $order->total_amount }}</span>
@@ -169,6 +188,13 @@
                         </button>
                     @endif
                 </div>
+
+                <details class="mt-3 rounded-xl border border-slate-800">
+                    <summary class="cursor-pointer px-3 py-2 text-xs font-bold text-slate-400 hover:text-slate-200">Refund / delivery actions</summary>
+                    <div class="p-3 pt-1">
+                        <livewire:pos.queue-actions :orderId="$order->id" :key="'qa-'.$order->id" />
+                    </div>
+                </details>
             </article>
         @empty
             <p class="col-span-full rounded-2xl border border-dashed border-slate-700 p-12 text-center text-sm text-slate-400">

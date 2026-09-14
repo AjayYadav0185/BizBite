@@ -58,6 +58,10 @@
                class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 transition hover:border-emerald-500 hover:text-emerald-400">
                 Order Queue →
             </a>
+            <a href="{{ route('pos.shift') }}"
+               class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 transition hover:border-emerald-500 hover:text-emerald-400">
+                Shift
+            </a>
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
                 <button type="submit" class="text-xs font-semibold text-slate-400 hover:text-red-400">Logout</button>
@@ -185,6 +189,66 @@
                     </label>
                 </div>
 
+                {{-- Order type + table + campaign + tendered (next-phase completion) --}}
+                <div class="mb-3 grid grid-cols-4 gap-1.5" role="group" aria-label="Order type">
+                    @foreach (['dine_in' => 'Dine-in', 'takeaway' => 'Takeaway', 'parcel' => 'Parcel', 'delivery' => 'Delivery'] as $value => $label)
+                        <button wire:click="setOrderType('{{ $value }}')"
+                                class="rounded-lg py-1.5 text-[11px] font-black uppercase transition {{ $orderType === $value ? 'bg-sky-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
+                            {{ $label }}
+                        </button>
+                    @endforeach
+                </div>
+
+                <div class="mb-3 grid grid-cols-2 gap-2">
+                    <label class="block">
+                        <span class="text-[11px] font-black uppercase tracking-widest text-slate-400">Table (dine-in)</span>
+                        <input type="text" maxlength="20" placeholder="T1"
+                               wire:model.live.debounce.400ms="tableNumberInput"
+                               class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
+                    </label>
+                    <label class="block">
+                        <span class="text-[11px] font-black uppercase tracking-widest text-slate-400">Campaign code</span>
+                        <input type="text" maxlength="40" placeholder="DIWALI10"
+                               wire:model.live.debounce.400ms="campaignInput"
+                               class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm uppercase text-white outline-none focus:border-emerald-500" />
+                    </label>
+                </div>
+
+                @if ($orderType === 'delivery')
+                    <div class="mb-3 grid grid-cols-2 gap-2">
+                        <label class="block">
+                            <span class="text-[11px] font-black uppercase tracking-widest text-slate-400">Delivery address</span>
+                            <input type="text" maxlength="255" placeholder="Flat / street / landmark"
+                                   wire:model.live.debounce.400ms="deliveryAddressInput"
+                                   class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
+                        </label>
+                        <label class="block">
+                            <span class="text-[11px] font-black uppercase tracking-widest text-slate-400">Agent</span>
+                            <input type="text" maxlength="80" placeholder="Rider name"
+                                   wire:model.live.debounce.400ms="deliveryAgentInput"
+                                   class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
+                        </label>
+                    </div>
+                @endif
+
+                <div class="mb-3 grid grid-cols-2 gap-2">
+                    <label class="block">
+                        <span class="text-[11px] font-black uppercase tracking-widest text-slate-400">Tendered ₹</span>
+                        <input type="number" min="0" step="0.01" placeholder="Cash received"
+                               wire:model.live.debounce.400ms="tenderedInput"
+                               class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
+                    </label>
+                    <label class="block">
+                        <span class="text-[11px] font-black uppercase tracking-widest text-slate-400">UPI ref</span>
+                        <input type="text" maxlength="60" placeholder="UTR (UPI/split)"
+                               wire:model.live.debounce.400ms="upiRefInput"
+                               class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
+                    </label>
+                </div>
+                @if (bccomp($this->changeDue, '0', 2) > 0)
+                    <p class="mb-3 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-300">Change due: ₹{{ $this->changeDue }}</p>
+                @endif
+
                 <div class="mb-2 space-y-1 text-xs text-slate-400">
                     <div class="flex justify-between">
                         <span>Subtotal</span>
@@ -203,16 +267,54 @@
                     <span class="font-black text-emerald-400">₹{{ $this->cartGrandTotal }}</span>
                 </div>
 
-                <div class="mb-3 grid grid-cols-2 gap-2" role="group" aria-label="Payment mode">
+                <div class="mb-3 grid grid-cols-3 gap-2" role="group" aria-label="Payment mode">
                     <button wire:click="setPaymentMode('cash')"
-                            class="rounded-lg py-2 text-sm font-black transition {{ $paymentMode === 'cash' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
+                            class="rounded-lg py-2 text-xs font-black transition {{ $paymentMode === 'cash' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
                         CASH (F8)
                     </button>
                     <button wire:click="setPaymentMode('upi')"
-                            class="rounded-lg py-2 text-sm font-black transition {{ $paymentMode === 'upi' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
+                            class="rounded-lg py-2 text-xs font-black transition {{ $paymentMode === 'upi' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
                         UPI (F9)
                     </button>
+                    <button wire:click="setPaymentMode('card')"
+                            class="rounded-lg py-2 text-xs font-black transition {{ $paymentMode === 'card' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
+                        CARD
+                    </button>
+                    <button wire:click="setPaymentMode('credit')"
+                            class="rounded-lg py-2 text-xs font-black transition {{ $paymentMode === 'credit' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
+                        CREDIT
+                    </button>
+                    <button wire:click="setPaymentMode('split')"
+                            class="col-span-2 rounded-lg py-2 text-xs font-black transition {{ $paymentMode === 'split' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
+                        SPLIT (₹{{ $this->splitTotal }})
+                    </button>
                 </div>
+
+                @if ($paymentMode === 'split')
+                    <div class="mb-3 rounded-lg border border-dashed border-slate-700 p-2.5">
+                        <p class="text-[11px] font-black uppercase tracking-widest text-slate-400">
+                            Split legs must total ₹{{ $this->cartGrandTotal }}
+                        </p>
+                        <div class="mt-2 flex gap-1.5">
+                            <select id="split-mode" class="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white">
+                                <option value="cash">Cash</option>
+                                <option value="upi">UPI</option>
+                                <option value="card">Card</option>
+                                <option value="credit">Credit</option>
+                            </select>
+                            <input id="split-amount" type="number" min="0.01" step="0.01" placeholder="₹"
+                                   class="w-24 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white" />
+                            <button onclick="const m = document.getElementById('split-mode').value; const a = document.getElementById('split-amount').value; if (a) { @this.call('addSplitLeg', m, a); document.getElementById('split-amount').value = ''; }"
+                                    class="rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-bold text-white">Add</button>
+                        </div>
+                        @foreach ($splitLegs as $i => $leg)
+                            <div class="mt-1.5 flex items-center justify-between text-xs text-slate-300">
+                                <span class="uppercase">{{ $leg['mode'] }} · ₹{{ $leg['amount'] }}</span>
+                                <button wire:click="removeSplitLeg({{ $i }})" class="text-slate-500 hover:text-red-400">✕</button>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
 
                 <button
                     wire:click="checkout('{{ $paymentMode }}')"

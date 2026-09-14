@@ -3,7 +3,9 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\MenuAdminController;
 use App\Http\Controllers\Api\MenuController;
+use App\Http\Controllers\Api\OpsAdminController;
 use App\Http\Controllers\Api\OrderApiController;
+use App\Http\Controllers\Api\OpsController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\WalletRechargeController;
@@ -60,6 +62,30 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/orders/{order}/status', [OrderApiController::class, 'updateStatus'])
         ->middleware('role:admin,cashier');
 
+    // POST /api/orders/{order}/refund — partial refund with reason (ledger +
+    // negative payment leg + audit row, never exceeding the bill total).
+    Route::post('/orders/{order}/refund', [OpsController::class, 'refund'])
+        ->middleware('role:admin,cashier');
+
+    // PATCH /api/orders/{order}/delivery — delivery workflow moves.
+    Route::patch('/orders/{order}/delivery', [OpsController::class, 'delivery'])
+        ->middleware('role:admin,cashier');
+
+    // Shifts: open / close / list (cash-drawer sessions).
+    Route::get('/shifts', [OpsController::class, 'shifts'])->middleware('role:admin,cashier');
+    Route::post('/shifts/open', [OpsController::class, 'openShift'])->middleware('role:admin,cashier');
+    Route::post('/shifts/{shift}/close', [OpsController::class, 'closeShift'])->middleware('role:admin,cashier');
+
+    // Owner reports: hourly / best-sellers / range. Staff can read the day
+    // numbers too; CSV export stays admin-gated via the controller.
+    Route::get('/reports/hourly', [OpsController::class, 'hourly'])->middleware('role:admin,cashier');
+    Route::get('/reports/best-sellers', [OpsController::class, 'bestSellers'])->middleware('role:admin,cashier');
+    Route::get('/reports/range', [OpsController::class, 'range'])->middleware('role:admin,cashier');
+
+    // Owner-managed resources for the Flutter console + admin tabs.
+    Route::get('/tables', [OpsController::class, 'tables'])->middleware('role:admin,cashier');
+    Route::get('/campaigns', [OpsAdminController::class, 'campaigns'])->middleware('role:admin,cashier');
+
     // Admin-only menu writes for the Flutter Store console.
     // Reads stay on GET /api/menu; writes mirror Livewire MenuManager
     // validation and are tenant-scoped via the global StoreScope.
@@ -69,6 +95,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/menu/items', [MenuAdminController::class, 'storeItem']);
         Route::put('/menu/items/{id}', [MenuAdminController::class, 'updateItem'])->whereNumber('id');
         Route::delete('/menu/items/{id}', [MenuAdminController::class, 'destroyItem'])->whereNumber('id');
+
+        // Owner-managed tables / campaigns / staff (admin console + app).
+        Route::post('/tables', [OpsAdminController::class, 'storeTable']);
+        Route::patch('/tables/{table}', [OpsAdminController::class, 'updateTable']);
+        Route::delete('/tables/{table}', [OpsAdminController::class, 'destroyTable']);
+        Route::post('/campaigns', [OpsAdminController::class, 'storeCampaign']);
+        Route::patch('/campaigns/{campaign}', [OpsAdminController::class, 'updateCampaign']);
+        Route::delete('/campaigns/{campaign}', [OpsAdminController::class, 'destroyCampaign']);
+        Route::get('/staff', [OpsAdminController::class, 'staff']);
+        Route::post('/staff', [OpsAdminController::class, 'storeStaff']);
+        Route::patch('/staff/{user}', [OpsAdminController::class, 'updateStaff']);
     });
 
     // ANY /api/logout — revokes the token used for the current request.

@@ -65,6 +65,15 @@ final class OrderReceipt
         public readonly string $walletDeduction = '0.00',
         public readonly ?string $walletBalanceAfter = null,
         public readonly ?string $notes = null,
+        public readonly ?string $tableNumber = null,
+        public readonly ?string $campaignCode = null,
+        public readonly string $campaignDiscount = '0.00',
+        public readonly string $tenderedAmount = '0.00',
+        public readonly string $changeAmount = '0.00',
+        public readonly ?string $deliveryAddress = null,
+        public readonly ?string $deliveryAgent = null,
+        public readonly string $deliveryStatus = 'pending',
+        public readonly ?string $splitDetails = null,
     ) {}
 
     /**
@@ -99,6 +108,15 @@ final class OrderReceipt
             'customer_phone' => $this->customerPhone ?? $this->order->customer_phone,
             // Free-text bill note the cashier captured at checkout.
             'notes' => $this->notes ?? $this->order->notes,
+            'table_number' => $this->tableNumber ?? $this->order->table_number,
+            'campaign_code' => $this->campaignCode ?? $this->order->campaign_code,
+            'campaign_discount' => $this->campaignDiscount ?? $this->order->campaign_discount,
+            'tendered_amount' => $this->tenderedAmount ?? $this->order->tendered_amount,
+            'change_amount' => $this->changeAmount ?? $this->order->change_amount,
+            'delivery_address' => $this->deliveryAddress ?? $this->order->delivery_address,
+            'delivery_agent' => $this->deliveryAgent ?? $this->order->delivery_agent,
+            'delivery_status' => $this->deliveryStatus ?? $this->order->delivery_status,
+            'split_details' => $this->splitDetails ?? $this->order->split_details,
             // Customer Wallet: 1% points movement for this bill.
             'wallet_deduction' => $this->walletDeduction,
             'wallet_balance_after' => $this->walletBalanceAfter,
@@ -177,6 +195,15 @@ final class OrderReceipt
             walletDeduction: $walletDeduction,
             walletBalanceAfter: $walletBalanceAfter,
             notes: $order->notes,
+            tableNumber: $order->table_number,
+            campaignCode: $order->campaign_code,
+            campaignDiscount: (string) ($order->campaign_discount ?? '0.00'),
+            tenderedAmount: (string) ($order->tendered_amount ?? '0.00'),
+            changeAmount: (string) ($order->change_amount ?? '0.00'),
+            deliveryAddress: $order->delivery_address,
+            deliveryAgent: $order->delivery_agent,
+            deliveryStatus: $order->delivery_status ?? 'pending',
+            splitDetails: $order->split_details,
         );
     }
 }

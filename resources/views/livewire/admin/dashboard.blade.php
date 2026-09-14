@@ -31,6 +31,26 @@
                             $tab === 'sales' ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-600 hover:bg-brand-50'])>
                     Sales Summary
                 </button>
+                <button wire:click="switchTab('reports')"
+                        @class(['rounded-xl px-3.5 py-2 transition',
+                            $tab === 'reports' ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-600 hover:bg-brand-50'])>
+                    Reports
+                </button>
+                <button wire:click="switchTab('tables')"
+                        @class(['rounded-xl px-3.5 py-2 transition',
+                            $tab === 'tables' ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-600 hover:bg-brand-50'])>
+                    Tables
+                </button>
+                <button wire:click="switchTab('campaigns')"
+                        @class(['rounded-xl px-3.5 py-2 transition',
+                            $tab === 'campaigns' ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-600 hover:bg-brand-50'])>
+                    Campaigns
+                </button>
+                <button wire:click="switchTab('staff')"
+                        @class(['rounded-xl px-3.5 py-2 transition',
+                            $tab === 'staff' ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-600 hover:bg-brand-50'])>
+                    Staff
+                </button>
                 <button wire:click="switchTab('logs')"
                         @class(['rounded-xl px-3.5 py-2 transition',
                             $tab === 'logs' ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-600 hover:bg-brand-50'])>
@@ -78,6 +98,30 @@
                             <span>Sales Summary</span>
                             @if ($tab === 'sales')<span class="text-brand-200">●</span>@endif
                         </button>
+                        <button wire:click="switchTab('reports')"
+                                @class(['flex items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-bold transition',
+                                    $tab === 'reports' ? 'bg-brand-500 text-white' : 'text-slate-700 hover:bg-brand-50'])>
+                            <span>Reports</span>
+                            @if ($tab === 'reports')<span class="text-brand-200">●</span>@endif
+                        </button>
+                        <button wire:click="switchTab('tables')"
+                                @class(['flex items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-bold transition',
+                                    $tab === 'tables' ? 'bg-brand-500 text-white' : 'text-slate-700 hover:bg-brand-50'])>
+                            <span>Tables</span>
+                            @if ($tab === 'tables')<span class="text-brand-200">●</span>@endif
+                        </button>
+                        <button wire:click="switchTab('campaigns')"
+                                @class(['flex items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-bold transition',
+                                    $tab === 'campaigns' ? 'bg-brand-500 text-white' : 'text-slate-700 hover:bg-brand-50'])>
+                            <span>Campaigns</span>
+                            @if ($tab === 'campaigns')<span class="text-brand-200">●</span>@endif
+                        </button>
+                        <button wire:click="switchTab('staff')"
+                                @class(['flex items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-bold transition',
+                                    $tab === 'staff' ? 'bg-brand-500 text-white' : 'text-slate-700 hover:bg-brand-50'])>
+                            <span>Staff</span>
+                            @if ($tab === 'staff')<span class="text-brand-200">●</span>@endif
+                        </button>
                         <button wire:click="switchTab('logs')"
                                 @class(['flex items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-bold transition',
                                     $tab === 'logs' ? 'bg-brand-500 text-white' : 'text-slate-700 hover:bg-brand-50'])>
@@ -113,6 +157,14 @@
             <livewire:admin.receipt-customizer :key="'receipt'" />
         @elseif ($tab === 'sales')
             <livewire:admin.sales-summary :key="'sales'" />
+        @elseif ($tab === 'reports')
+            <livewire:admin.reports :key="'reports'" />
+        @elseif ($tab === 'tables')
+            <livewire:admin.table-manager :key="'tables'" />
+        @elseif ($tab === 'campaigns')
+            <livewire:admin.campaign-manager :key="'campaigns'" />
+        @elseif ($tab === 'staff')
+            <livewire:admin.staff-manager :key="'staff'" />
         @elseif ($tab === 'logs')
             <livewire:admin.audit-log-viewer :key="'logs'" />
         @endif

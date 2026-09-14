@@ -222,12 +222,41 @@ final class OrderService
                 }
 
                 // Flat bill-level discount (never below zero), then round-off to the rupee.
+                // Campaign codes (Phase 3 loyalty) are resolved server side so a
+                // forged code can never mint a discount: the code must belong to
+                // this store and be live, otherwise it is ignored (audited when used).
                 $discountAmount = '0.00';
                 if (isset($payload['discount_amount']) && is_numeric($payload['discount_amount'])) {
                     $discountAmount = number_format(max((float) $payload['discount_amount'], 0), 2, '.', '');
                     if (bccomp($discountAmount, $subtotalAmount, 2) > 0) {
                         $discountAmount = $subtotalAmount;
                     }
+                }
+
+                $campaignCode = isset($payload['campaign_code']) && is_string($payload['campaign_code'])
+                    ? strtoupper(substr(trim($payload['campaign_code']), 0, 40)) ?: null
+                    : null;
+                $campaignDiscount = '0.00';
+                if ($campaignCode !== null) {
+                    $campaign = \App\Models\Campaign::query()
+                        ->where('code', $campaignCode)
+                        ->first();
+                    if ($campaign !== null) {
+                        $campaignDiscount = $campaign->discountFor($subtotalAmount);
+                        if (bccomp($campaignDiscount, '0', 2) <= 0) {
+                            $campaignCode = null;
+                        }
+                    } else {
+                        $campaignCode = null;
+                    }
+                }
+                // Campaign discount stacks with (but never exceeds) the remainder.
+                if (bccomp($campaignDiscount, '0', 2) > 0) {
+                    $room = bcsub($subtotalAmount, $discountAmount, 2);
+                    if (bccomp($campaignDiscount, $room, 2) > 0) {
+                        $campaignDiscount = $room;
+                    }
+                    $discountAmount = bcadd($discountAmount, $campaignDiscount, 2);
                 }
 
                 $afterDiscount = bcsub($subtotalAmount, $discountAmount, 2);
@@ -254,6 +283,29 @@ final class OrderService
                 $notes = isset($payload['notes']) && is_string($payload['notes'])
                     ? substr(trim($payload['notes']), 0, 200) ?: null
                     : null;
+                $tableNumber = isset($payload['table_number']) && is_string($payload['table_number'])
+                    ? substr(trim($payload['table_number']), 0, 20) ?: null
+                    : null;
+                $splitLegs = $this->normalizeSplitLegs($payload['split_details'] ?? null, $rounded, $paymentMode);
+                $tenderedAmount = isset($payload['tendered_amount']) && is_numeric($payload['tendered_amount'])
+                    ? number_format(max((float) $payload['tendered_amount'], 0), 2, '.', '')
+                    : '0.00';
+                $changeAmount = '0.00';
+                if (bccomp($tenderedAmount, '0', 2) > 0 && bccomp($tenderedAmount, $rounded, 2) >= 0) {
+                    $changeAmount = bcsub($tenderedAmount, $rounded, 2);
+                }
+                $deliveryAddress = isset($payload['delivery_address']) && is_string($payload['delivery_address'])
+                    ? substr(trim($payload['delivery_address']), 0, 255) ?: null
+                    : null;
+                $deliveryAgent = isset($payload['delivery_agent']) && is_string($payload['delivery_agent'])
+                    ? substr(trim($payload['delivery_agent']), 0, 80) ?: null
+                    : null;
+                $deliveryStatus = isset($payload['delivery_status']) && is_string($payload['delivery_status'])
+                    ? strtolower(substr(trim($payload['delivery_status']), 0, 20))
+                    : 'pending';
+                if (! in_array($deliveryStatus, ['pending', 'assigned', 'out', 'delivered', 'failed'], strict: true)) {
+                    $deliveryStatus = 'pending';
+                }
 
                 // ---------------------------------------------------------
                 // COMMIT: order header + immutable snapshot rows + payment leg.
@@ -279,17 +331,29 @@ final class OrderService
                     'customer_phone' => $customerPhone,
                     'notes' => $notes,
                     'idempotency_key' => $idempotencyKey,
+                    'table_number' => $tableNumber,
+                    'split_details' => $splitLegs !== [] ? json_encode($splitLegs) : null,
+                    'tendered_amount' => $tenderedAmount,
+                    'change_amount' => $changeAmount,
+                    'delivery_address' => $deliveryAddress,
+                    'delivery_agent' => $deliveryAgent,
+                    'delivery_status' => $deliveryStatus,
+                    'campaign_code' => $campaignCode,
+                    'campaign_discount' => $campaignDiscount,
                 ]);
 
                 $order->items()->createMany($snapshotRows);
-                $order->payments()->create([
-                    'store_id' => $storeId,
-                    'mode' => $paymentMode->value,
-                    'amount' => $rounded,
-                    'status' => 'success',
-                    'upi_ref' => $paymentMode === PaymentMode::Upi ? $upiRef : null,
-                    'paid_at' => now(),
-                ]);
+                $legs = $splitLegs !== [] ? $splitLegs : [['mode' => $paymentMode->value, 'amount' => $rounded]];
+                foreach ($legs as $leg) {
+                    $order->payments()->create([
+                        'store_id' => $storeId,
+                        'mode' => $leg['mode'],
+                        'amount' => $leg['amount'],
+                        'status' => 'success',
+                        'upi_ref' => $leg['mode'] === PaymentMode::Upi->value ? $upiRef : null,
+                        'paid_at' => now(),
+                    ]);
+                }
                 $order->setRelation('items', $order->items()->get());
 
                 // Customer Wallet: 1% of the settled total is debited from
@@ -326,6 +390,26 @@ final class OrderService
                         new: ['payment_mode' => 'credit', 'total_amount' => $rounded, 'customer_name' => $customerName, 'customer_phone' => $customerPhone],
                         amount: $rounded,
                     );
+                }
+
+                if ($campaignCode !== null && bccomp($campaignDiscount, '0', 2) > 0) {
+                    Audit::record(
+                        $user,
+                        AuditLog::ACTION_ORDER_DISCOUNT,
+                        'Campaign '.$campaignCode.' gave ₹'.number_format((float) $campaignDiscount, 2).' off bill '.$order->order_number.'.',
+                        entityType: 'order',
+                        entityId: $order->id,
+                        entityName: $order->order_number,
+                        old: ['campaign_code' => $campaignCode],
+                        new: ['campaign_discount' => $campaignDiscount],
+                        amount: $campaignDiscount,
+                    );
+                }
+
+                if ($tableNumber !== null) {
+                    \App\Models\DiningTable::query()
+                        ->where('table_number', $tableNumber)
+                        ->update(['status' => \App\Models\DiningTable::STATUS_OCCUPIED, 'current_order_id' => $order->id]);
                 }
 
                 return OrderReceipt::fromOrder(
@@ -394,6 +478,19 @@ final class OrderService
             // (Stock was decremented inside the original checkout transaction.)
             if ($status === OrderStatus::Cancelled) {
                 $this->restoreStock($order);
+                if ($order->table_number) {
+                    \App\Models\DiningTable::query()
+                        ->where('table_number', $order->table_number)
+                        ->where('current_order_id', $order->id)
+                        ->update(['status' => \App\Models\DiningTable::STATUS_AVAILABLE, 'current_order_id' => null]);
+                }
+            }
+
+            if ($status === OrderStatus::Completed && $order->table_number) {
+                \App\Models\DiningTable::query()
+                    ->where('table_number', $order->table_number)
+                    ->where('current_order_id', $order->id)
+                    ->update(['status' => \App\Models\DiningTable::STATUS_AVAILABLE, 'current_order_id' => null]);
             }
 
             Audit::record(
@@ -414,6 +511,105 @@ final class OrderService
 
             return $order->fresh(['items', 'user:id,name']);
         });
+    }
+
+    /**
+     * Update the delivery workflow state of a delivery bill (Phase 3).
+     *
+     * @throws OrderPlacementException when the status is unknown.
+     */
+    public function updateDelivery(User $actor, Order $order, string $deliveryStatus, ?string $agent = null, ?string $address = null): Order
+    {
+        $deliveryStatus = strtolower(trim($deliveryStatus));
+
+        if (! in_array($deliveryStatus, ['pending', 'assigned', 'out', 'delivered', 'failed'], strict: true)) {
+            throw new OrderPlacementException('Unknown delivery status.', 422);
+        }
+
+        return DB::transaction(function () use ($actor, $order, $deliveryStatus, $agent, $address): Order {
+            $order->update([
+                'delivery_status' => $deliveryStatus,
+                'delivery_agent' => $agent !== null ? substr(trim($agent), 0, 80) ?: $order->delivery_agent : $order->delivery_agent,
+                'delivery_address' => $address !== null ? substr(trim($address), 0, 255) ?: $order->delivery_address : $order->delivery_address,
+            ]);
+
+            Audit::record(
+                $actor,
+                AuditLog::ACTION_ORDER_STATUS,
+                'Bill '.$order->order_number.' delivery marked '.$deliveryStatus.'.',
+                entityType: 'order',
+                entityId: $order->id,
+                entityName: $order->order_number,
+                new: ['delivery_status' => $deliveryStatus],
+                amount: (string) $order->total_amount,
+            );
+
+            return $order->fresh(['items', 'user:id,name']);
+        });
+    }
+
+    /**
+     * Normalize split-tender legs [{mode, amount}] — must sum to the total.
+     *
+     * @return array<int, array{mode: string, amount: string}>
+     */
+    private function normalizeSplitLegs(mixed $raw, string $rounded, PaymentMode $fallback): array
+    {
+        if (is_string($raw)) {
+            $decoded = json_decode($raw, true);
+            $raw = is_array($decoded) ? $decoded : null;
+        }
+
+        if (! is_array($raw) || $raw === []) {
+            return [];
+        }
+
+        $allowed = array_column(PaymentMode::cases(), 'value');
+        $legs = [];
+
+        foreach ($raw as $leg) {
+            if (! is_array($leg)) {
+                continue;
+            }
+            $mode = isset($leg['mode']) && is_string($leg['mode']) ? strtolower(trim($leg['mode'])) : '';
+            $amount = isset($leg['amount']) && is_numeric($leg['amount'])
+                ? number_format(max((float) $leg['amount'], 0), 2, '.', '')
+                : '0.00';
+            if (! in_array($mode, $allowed, strict: true) || bccomp($amount, '0', 2) <= 0) {
+                continue;
+            }
+            $legs[] = ['mode' => $mode, 'amount' => $amount];
+        }
+
+        if ($legs === []) {
+            return [];
+        }
+
+        $merged = [];
+        foreach ($legs as $leg) {
+            $merged[$leg['mode']] = isset($merged[$leg['mode']])
+                ? bcadd($merged[$leg['mode']], $leg['amount'], 2)
+                : $leg['amount'];
+        }
+        $legs = [];
+        foreach ($merged as $mode => $amount) {
+            $legs[] = ['mode' => $mode, 'amount' => $amount];
+        }
+
+        $sum = '0.00';
+        foreach ($legs as $leg) {
+            $sum = bcadd($sum, $leg['amount'], 2);
+        }
+
+        if (bccomp($sum, $rounded, 2) !== 0) {
+            return [];
+        }
+
+        if (count($legs) === 1 && $legs[0]['mode'] === $fallback->value) {
+            return [];
+        }
+
+        return array_values($legs);
     }
 
     /**

@@ -83,6 +83,7 @@ final class AuditLogViewer extends Component
             AuditLog::ACTION_CATEGORY_UPDATED => 'Category updated',
             AuditLog::ACTION_CATEGORY_DELETED => 'Category deleted',
             AuditLog::ACTION_ORDER_DISCOUNT => 'Discount given',
+            AuditLog::ACTION_ORDER_REFUND => 'Refund issued',
             AuditLog::ACTION_ORDER_CANCELLED => 'Bill cancelled',
             AuditLog::ACTION_ORDER_STATUS => 'Order status changed',
             AuditLog::ACTION_STOCK_UPDATED => 'Stock updated',

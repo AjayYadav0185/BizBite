@@ -42,6 +42,17 @@ class Order extends Model
         'customer_phone',
         'notes',
         'idempotency_key',
+        'table_number',
+        'split_details',
+        'tendered_amount',
+        'change_amount',
+        'refunded_amount',
+        'refund_reason',
+        'delivery_address',
+        'delivery_agent',
+        'delivery_status',
+        'campaign_code',
+        'campaign_discount',
     ];
 
     /**
@@ -57,6 +68,10 @@ class Order extends Model
             'tax_amount' => 'decimal:2',
             'round_off' => 'decimal:2',
             'total_amount' => 'decimal:2',
+            'tendered_amount' => 'decimal:2',
+            'change_amount' => 'decimal:2',
+            'refunded_amount' => 'decimal:2',
+            'campaign_discount' => 'decimal:2',
             'payment_mode' => PaymentMode::class,
             'payment_status' => PaymentStatus::class,
             'status' => OrderStatus::class,
@@ -102,5 +117,15 @@ class Order extends Model
     public function payments()
     {
         return $this->hasMany(Payment::class);
+    }
+
+    /**
+     * Partial / post-completion refunds issued against this bill.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Refund>
+     */
+    public function refunds()
+    {
+        return $this->hasMany(Refund::class);
     }
 }

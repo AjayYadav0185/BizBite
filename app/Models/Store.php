@@ -105,6 +105,46 @@ class Store extends Model
     }
 
     /**
+     * Dining tables owned by this store (Phase 3: table management).
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\DiningTable>
+     */
+    public function diningTables()
+    {
+        return $this->hasMany(DiningTable::class);
+    }
+
+    /**
+     * Discount / loyalty campaigns owned by this store (Phase 3).
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Campaign>
+     */
+    public function campaigns()
+    {
+        return $this->hasMany(Campaign::class);
+    }
+
+    /**
+     * Staff shifts (cash-drawer sessions) for this store.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Shift>
+     */
+    public function shifts()
+    {
+        return $this->hasMany(Shift::class);
+    }
+
+    /**
+     * Refund ledger rows for this store.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Refund>
+     */
+    public function refunds()
+    {
+        return $this->hasMany(Refund::class);
+    }
+
+    /**
      * Get the payments collected for the store.
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Payment>

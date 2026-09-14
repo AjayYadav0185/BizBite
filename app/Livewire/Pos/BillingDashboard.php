@@ -3,6 +3,7 @@
 namespace App\Livewire\Pos;
 
 use App\Models\Category;
+use App\Models\Enums\OrderType;
 use App\Models\Enums\PaymentMode;
 use App\Models\FoodItem;
 use App\Models\User;
@@ -51,8 +52,31 @@ final class BillingDashboard extends Component
      */
     public array $cart = [];
 
-    /** Payment mode for the next settlement: 'cash'|'upi'. */
+    /** Payment mode for the next settlement: cash|upi|card|credit|split. */
     public string $paymentMode = 'cash';
+
+    /** Order type for the next bill (dine-in / takeaway / parcel / delivery). */
+    public string $orderType = 'takeaway';
+
+    /** Dine-in table number (Phase 3 table management). */
+    public string $tableNumberInput = '';
+
+    /** Campaign / loyalty code typed by the cashier (Phase 3). */
+    public string $campaignInput = '';
+
+    /** Cash tendered for tendered/change math (cash + split legs). */
+    public string $tenderedInput = '';
+
+    /** Split legs when paymentMode is split: [{mode, amount}]. */
+    public array $splitLegs = [];
+
+    /** UPI reference / UTR for UPI + split-with-UPI bills. */
+    public string $upiRefInput = '';
+
+    /** Delivery address + agent for delivery bills (Phase 3 workflow). */
+    public string $deliveryAddressInput = '';
+
+    public string $deliveryAgentInput = '';
 
     /** Receipt payload of the last settled bill (drives the print block). */
     public ?array $lastReceipt = null;
@@ -203,14 +227,20 @@ final class BillingDashboard extends Component
     #[On('shortcut-clear-cart')]
     public function clearCart(): void
     {
-        $this->reset('cart', 'error', 'success', 'discountInput', 'notesInput');
+        $this->reset(
+            'cart', 'error', 'success', 'discountInput', 'notesInput',
+            'tableNumberInput', 'campaignInput', 'tenderedInput', 'splitLegs',
+            'upiRefInput', 'deliveryAddressInput', 'deliveryAgentInput'
+        );
         $this->paymentMode = 'cash';
+        $this->orderType = 'takeaway';
     }
 
     public function setPaymentMode(string $mode): void
     {
-        if (in_array($mode, ['cash', 'upi'], strict: true)) {
+        if (in_array($mode, array_column(PaymentMode::cases(), 'value'), strict: true)) {
             $this->paymentMode = $mode;
+            $this->error = null;
         }
     }
 
@@ -281,6 +311,79 @@ final class BillingDashboard extends Component
         $this->checkout(PaymentMode::Upi->value);
     }
 
+    #[On('shortcut-card')]
+    public function checkoutViaCard(): void
+    {
+        $this->checkout(PaymentMode::Card->value);
+    }
+
+    public function setOrderType(string $type): void
+    {
+        if (in_array($type, array_column(OrderType::cases(), 'value'), strict: true)) {
+            $this->orderType = $type;
+            $this->error = null;
+        }
+    }
+
+    /** Add one split-tender leg (mode + amount) for split checkout. */
+    public function addSplitLeg(string $mode, string $amount): void
+    {
+        $mode = strtolower(trim($mode));
+
+        if (! in_array($mode, array_column(PaymentMode::cases(), 'value'), strict: true)) {
+            $this->error = 'Unknown payment mode for split leg.';
+
+            return;
+        }
+
+        if (! is_numeric($amount) || (float) $amount <= 0) {
+            $this->error = 'Split amount must be greater than zero.';
+
+            return;
+        }
+
+        $this->splitLegs[] = [
+            'mode' => $mode,
+            'amount' => number_format((float) $amount, 2, '.', ''),
+        ];
+        $this->error = null;
+    }
+
+    public function removeSplitLeg(int $index): void
+    {
+        unset($this->splitLegs[$index]);
+        $this->splitLegs = array_values($this->splitLegs);
+    }
+
+    /** Provisional split-leg total (server re-validates at checkout). */
+    #[Computed]
+    public function splitTotal(): string
+    {
+        $sum = '0.00';
+        foreach ($this->splitLegs as $leg) {
+            if (isset($leg['amount']) && is_numeric($leg['amount'])) {
+                $sum = bcadd($sum, number_format((float) $leg['amount'], 2, '.', ''), 2);
+            }
+        }
+
+        return $sum;
+    }
+
+    /** Provisional change due for cash checkout (server recomputes). */
+    #[Computed]
+    public function changeDue(): string
+    {
+        if (! is_numeric($this->tenderedInput)) {
+            return '0.00';
+        }
+        $tendered = number_format(max((float) $this->tenderedInput, 0), 2, '.', '');
+        if (bccomp($tendered, $this->cartGrandTotal, 2) < 0) {
+            return '0.00';
+        }
+
+        return bcsub($tendered, $this->cartGrandTotal, 2);
+    }
+
     // ---------------------------------------------------------------------
     // Checkout — commit via the SHARED OrderService, then print
     // ---------------------------------------------------------------------
@@ -301,6 +404,9 @@ final class BillingDashboard extends Component
         $user = Auth::user();
 
         try {
+            $modeEnum = PaymentMode::tryFrom($mode) ?? PaymentMode::Cash;
+            $typeEnum = OrderType::tryFrom($this->orderType) ?? OrderType::Takeaway;
+
             $receipt = $this->orders->place($user, [
                 'items' => array_map(
                     fn (array $line): array => [
@@ -309,11 +415,17 @@ final class BillingDashboard extends Component
                     ],
                     array_values($this->cart)
                 ),
-                'payment_mode' => $mode,
-                // MVP scope §6: bill-level discount + free-text note travel
-                // with the cart; OrderService re-validates both server side.
+                'payment_mode' => $modeEnum->value,
+                'order_type' => $typeEnum->value,
                 'discount_amount' => $this->cartDiscount,
                 'notes' => substr(trim($this->notesInput), 0, 200) ?: null,
+                'table_number' => substr(trim($this->tableNumberInput), 0, 20) ?: null,
+                'campaign_code' => substr(trim($this->campaignInput), 0, 40) ?: null,
+                'tendered_amount' => is_numeric($this->tenderedInput) ? $this->tenderedInput : '0.00',
+                'split_details' => $modeEnum === PaymentMode::Split ? $this->splitLegs : null,
+                'upi_ref' => substr(trim($this->upiRefInput), 0, 60) ?: null,
+                'delivery_address' => substr(trim($this->deliveryAddressInput), 0, 255) ?: null,
+                'delivery_agent' => substr(trim($this->deliveryAgentInput), 0, 80) ?: null,
             ]);
         } catch (OrderPlacementException $exception) {
             $this->error = $exception->getMessage();
@@ -326,8 +438,13 @@ final class BillingDashboard extends Component
         $this->success = sprintf('Bill %s settled — ₹%s', $receipt->order->order_number, $receipt->totalAmount);
 
         // ...then reset the cart for the next customer...
-        $this->reset('cart', 'discountInput', 'notesInput');
+        $this->reset(
+            'cart', 'discountInput', 'notesInput', 'tableNumberInput',
+            'campaignInput', 'tenderedInput', 'splitLegs', 'upiRefInput',
+            'deliveryAddressInput', 'deliveryAgentInput'
+        );
         $this->paymentMode = PaymentMode::Cash->value;
+        $this->orderType = OrderType::Takeaway->value;
 
         // ...and fire the browser event that triggers the native print dialog.
         $this->dispatch('trigger-print');

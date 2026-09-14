@@ -66,6 +66,15 @@ final class OrderApiController extends Controller
             'notes' => ['nullable', 'string', 'max:200'],
             'upi_ref' => ['nullable', 'string', 'max:60'],
             'idempotency_key' => ['nullable', 'string', 'max:64'],
+            'table_number' => ['nullable', 'string', 'max:20'],
+            'campaign_code' => ['nullable', 'string', 'max:40'],
+            'tendered_amount' => ['nullable', 'numeric', 'min:0'],
+            'split_details' => ['nullable', 'array'],
+            'split_details.*.mode' => ['required_with:split_details', 'in:cash,upi,card,credit,split'],
+            'split_details.*.amount' => ['required_with:split_details', 'numeric', 'min:0.01'],
+            'delivery_address' => ['nullable', 'string', 'max:255'],
+            'delivery_agent' => ['nullable', 'string', 'max:80'],
+            'delivery_status' => ['nullable', 'in:pending,assigned,out,delivered,failed'],
         ]);
 
         try {

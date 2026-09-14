@@ -4,6 +4,7 @@ use App\Livewire\Admin\Dashboard as AdminDashboard;
 use App\Livewire\Auth\Login;
 use App\Livewire\Pos\BillingDashboard;
 use App\Livewire\Pos\OrderQueue;
+use App\Livewire\Pos\ShiftPanel;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -59,6 +60,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/pos/orders', OrderQueue::class)
         ->middleware('role:admin,cashier')
         ->name('pos.orders');
+
+    // STAFF POS PORTAL — shift / cash-drawer panel (staff shifts).
+    Route::get('/pos/shift', ShiftPanel::class)
+        ->middleware('role:admin,cashier')
+        ->name('pos.shift');
 
     // OWNER ADMIN PORTAL — business setup & telemetry (admin only).
     Route::get('/admin', AdminDashboard::class)

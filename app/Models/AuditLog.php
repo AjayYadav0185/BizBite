@@ -29,6 +29,7 @@ class AuditLog extends Model
     public const ACTION_CATEGORY_UPDATED = 'category_updated';
     public const ACTION_CATEGORY_DELETED = 'category_deleted';
     public const ACTION_ORDER_DISCOUNT = 'order_discount';
+    public const ACTION_ORDER_REFUND = 'order_refund';
     public const ACTION_ORDER_CANCELLED = 'order_cancelled';
     public const ACTION_ORDER_STATUS = 'order_status';
     public const ACTION_STOCK_UPDATED = 'stock_updated';

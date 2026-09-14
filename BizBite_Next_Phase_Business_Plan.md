@@ -1,5 +1,7 @@
 # BizBite — Focused Next Phase Plan
 
+> Last verified against the codebase: **14 Sep 2026** — `php artisan test` → **43 passed (145 assertions)**.
+
 ## 0. Current project stage (live update)
 
 The core POS and billing system is **built and working**. This is no longer a
@@ -7,7 +9,7 @@ plan on paper — Phase 1 is essentially complete.
 
 **What is already built and running:**
 
-- Laravel backend (Aspirin/Livewire) with native PHP 8.4 enums and typed models
+- Laravel 11 backend (Livewire 3, Sanctum 4) with native PHP enums and typed models
 - Multi-store (tenant) architecture — every table is store-scoped via `StoreScope`
 - Admin portal (Laravel Livewire):
   - role login (admin / cashier split)
@@ -19,33 +21,56 @@ plan on paper — Phase 1 is essentially complete.
   - live search + category filter menu grid
   - instant add / quantity steppers / cart editing
   - live totals (BCMath, GST computed per item slab, discount, round-off)
-  - payment selection — cash and UPI
+  - payment selection — cash and UPI buttons in the web POS (the server + API accept all five modes: cash, upi, card, credit, split)
   - checkout via shared `OrderService`, native thermal print dialog, receipt data
   - shortcuts: F2 clear cart, F4 focus search, F8 cash checkout, F9 UPI checkout
-- Order engine (`OrderService`) shared by web POS and mobile API:
-  - subtotal / discount / tax / round-off / total
-  - invoice number + order number, idempotency key, UPI reference
-  - order types (dine_in, takeaway, parcel, delivery)
-  - order statuses (pending, preparing, ready, completed, cancelled)
-  - payment modes enum (cash, upi, card, credit, split)
-- JSON API (Sanctum tokens) for the mobile apps
+- Order engine (`OrderService`, used identically by web POS, Sanctum API and
+  the mobile app):
+  - subtotal / discount / GST-per-item-slab / round-off / total (BCMath)
+  - invoice number + per-store-per-day order number, idempotency key, UPI reference
+  - order types (dine_in, takeaway, parcel, delivery) and statuses
+    (pending → preparing → ready → completed, plus cancelled)
+  - payment modes enum (cash, upi, card, credit, split) with per-order
+    `payments` ledger row
+  - stock decrement inside the same bill transaction; cancel/void restores it
+  - 1% wallet debit from the cashier's wallet inside the same transaction
+- Kitchen / counter order queue (`/pos/orders`, Livewire + `wire:poll`):
+  - today's board with open/all filters, per-status counters
+  - advance one step (pending → preparing → ready → completed), skip-ahead,
+    or cancel/void from any live state (cancelled is terminal)
+  - order-type filter splits dine-in / takeaway / parcel / delivery
+  - same transitions exposed to the mobile app via
+    `GET/PATCH /api/orders` (tenant-isolated)
+- Stock control (per-item opt-in: `NULL stock_quantity` = untracked/unlimited):
+  - stock count + low-stock threshold editable in MenuManager
+  - low-stock alert listing items at/below threshold (+ sold-out flag)
+  - POS blocks out-of-stock adds and caps the cart at shelf count;
+    server re-checks under row locks so two cashiers can't oversell
+  - cancelling a bill returns tracked quantities to the shelf
+  - stock edits audited (`stock_updated`)
 - Wallet system + Razorpay recharge + payment verification
-- **Flutter mobile app** (`mobile/`):
-  - auth, menu browsing, cart, order checkout, receipt screen, POS screen
-  - offline-first: local SQLite, menu cache, outbox + sync orchestrator
-- Production reliability basics: validations, error handling, audit logs,
-  DB migrations, seeding, Docker setup, sync queue for offline ordering
+- **Flutter mobile app** (`mobile/`, offline-first with local SQLite + outbox/sync):
+  - auth, menu browsing, cart, order checkout, receipt screen, POS screen,
+    wallet screen, Razorpay recharge
+- Full Sanctum JSON API: menu read, admin-only menu writes, order placement
+  (shared `OrderService`), queue list + status transitions, profile,
+  wallet balance + recharge initiate/verify, `POST /api/bill/generate` alias
+- Production reliability: validation, error handling, owner audit trail
+  (18 audited actions), DB migrations + seeders, Docker setup,
+  idempotent bill placement for offline retries, 43 tests / 145 assertions
 
 **Still missing (the real next phase):**
 
-- inventory / stock tracking (no stock count field exists)
-- kitchen / counter order queue (statuses exist, no kitchen screen)
-- card / credit / split payment flows (enum exists, POS UI is cash + UPI only)
-- order-type selector in the POS UI (dine-in / takeaway / delivery)
-- refunds, staff shifts, hourly sales / best-seller reports
-- table management
+- card / credit / split payment UI in the web POS (server + API accept them;
+  web buttons are cash + UPI only)
+- order-type + customer capture in the web POS UI (web POS sends no
+  `order_type`, so every web bill settles as takeaway, and sends no customer
+  name/phone — only discount + free-text bill note; API/mobile clients can
+  send all four order types plus customer details)
+- refunds beyond cancel-void, staff shifts, hourly sales / best-seller reports
+- table management (no table-number field exists)
 
-So the current stage = **Phase 1 (POS + billing) done, Phase 2 (operations) started**. The next work should focus on operations: stock, kitchen queue, payments, and deeper reports.
+So the current stage = **Phase 1 (POS + billing) done, Phase 2 (operations: stock, kitchen queue, payments backbone) largely done**. The next work: card/credit/split POS UI, order-type selector, refunds, staff shifts, and deeper reports (hourly, best-sellers).
 
 ---
 
@@ -73,69 +98,33 @@ This is much simpler and more realistic than a multi-branch or online ordering p
 
 ---
 
-## 4. What is missing now
+## 4. Feature status check (verified 14 Sep 2026)
 
-The main things to add are not customer features — they are operational features for a busy outlet.
+Checked against the actual code — most of this list is **already built**.
+Only the **bold** gaps in the ⚠️ rows are real remaining work.
 
-### Must add
+| # | Feature | Status |
+|---|---------|--------|
+| 1 | Quick order entry (fast add, quantity controls, instant totals) | ✅ Done — `BillingDashboard` (search, category filter, steppers, live BCMath totals, F2/F4/F8/F9 shortcuts) |
+| 2 | Bill generation (itemized bill, per-slab GST, discount, round-off, thermal print, notes) | ✅ Done — shared `OrderService` + printable receipt |
+| 3 | Payment flow | ⚠️ Partial — server/API accept cash, upi, card, credit, split; **web POS buttons are cash + UPI only**; no change-calc or split-tender UI |
+| 4 | Order status flow (new → preparing → ready → completed → cancelled) | ✅ Done — guarded transitions in `OrderService::updateStatus()`, tested |
+| 5 | Kitchen / counter board (live queue, dine-in vs takeaway split) | ✅ Done — `/pos/orders` with `wire:poll`, type filter, per-status counters; same flow via `PATCH /api/orders/{id}/status` |
+| 6 | Inventory tracking (stock count, low-stock alert, block out-of-stock) | ✅ Done — opt-in per item (`NULL` = untracked), low-stock alert in MenuManager, POS + server-side oversell guards, cancel restores stock |
+| 7 | Sales reporting (daily sales, revenue, payment mix, recent bills) | ⚠️ Partial — daily KPIs + payment mix + recent bills + discounts + avg bill exist; **no hourly breakdown, no best-sellers, no date-range/export** |
+| 8 | Table / takeaway / delivery handling | ⚠️ Partial — order types stored + filtered on the queue; **no table-number field, no order-type selector in web POS, no delivery-driver flow** |
+| 9 | Staff role workflow | ⚠️ Partial — admin/cashier gates + middleware + deactivation block; **no staff-management CRUD UI, no shifts, no manager role** |
+| 10 | Production-ready reliability | ⚠️ Partial — validation, error handling, audit logs, migrations/seeds, Docker, idempotency, 43 tests; **no backup story, no deployment runbook in repo** |
 
-1. Quick order entry
-   - add items fast from menu
-   - quantity controls
-   - instant total update
+### The real "must add" list (only what's left)
 
-2. Bill generation improvements
-   - clean invoice format
-   - itemized bill
-   - tax/service options
-   - discount handling
-   - print receipt option
-
-3. Payment flow
-   - cash payment
-   - card payment
-   - UPI / mobile wallet option
-   - change calculation
-   - split payment support
-
-4. Order status flow
-   - new order
-   - preparing
-   - ready
-   - completed
-   - cancelled
-
-5. Kitchen / counter communication
-   - show orders to kitchen staff
-   - separate dine-in and takeaway orders
-
-6. Inventory tracking
-   - stock count for each item
-   - alert when item is low
-   - prevent selling out-of-stock items
-
-7. Sales reporting
-   - daily sales
-   - hourly sales
-   - best-selling items
-   - total revenue
-
-8. Table / takeaway / delivery handling
-   - if you serve dine-in then table number
-   - if takeaway then order type
-   - if delivery then order from counter
-
-9. Staff role workflow
-   - cashier can sell
-   - manager can view reports
-   - admin can manage menu and pricing
-
-10. Production-ready reliability
-   - validation
-   - error handling
-   - database backups
-   - secure login
-   - deployment setup
+1. Web POS: card / credit / split payment buttons + change calculation
+2. Web POS: order-type selector (dine-in / takeaway / parcel / delivery)
+3. Refunds beyond cancel-void (partial refund, reason, audit)
+4. Reports: hourly sales, best-sellers, date range, export
+5. Staff: management UI (create/deactivate), shifts
+6. Tables: table numbers for dine-in
+7. Ops: backup + deployment runbook
 
 ---
 
@@ -143,38 +132,37 @@ The main things to add are not customer features — they are operational featur
 
 The best next phase is:
 
-Build a fast, reliable food outlet POS system focused on bill generation and order processing.
+Finish the POS gaps, then deepen reports — the engine (billing, queue, stock) is already built.
 
-### Priority features
+### Priority features (in build order)
 
-- quick add-to-bill flow
-- cart editing
-- quantity adjustment
-- payment selection
-- receipt printing
-- order status updates
-- daily sales reports
-- stock control
+1. Web POS card / credit / split buttons + change calculation
+   (server + enums already accept all five modes — UI-only work)
+2. Web POS order-type selector (dine-in / takeaway / parcel / delivery)
+3. Refunds beyond cancel-void (partial refund + reason + audit row)
+4. Reports: hourly sales, best-sellers, date range, export
+5. Staff management UI + shifts
+6. Table numbers for dine-in
 
 This is the version that matches your idea of a rush food outlet business.
 
 ---
 
-## 6. Recommended MVP scope
+## 6. Recommended MVP scope (current status)
 
-Your MVP should be simple and strong:
+- ✅ admin logs in (role routing + deactivation block)
+- ✅ add or update food items and prices (MenuManager + audit)
+- ✅ staff creates new bill (keyboard-first POS)
+- ✅ add menu items to bill (search, filter, steppers)
+- ✅ apply quantity, discounts, or notes (clamped, server re-validated)
+- ⚠️ choose payment mode (cash/UPI in web POS; card/credit/split via API only)
+- ✅ print receipt (thermal dialog + mobile printer service)
+- ✅ save sale and show in dashboard (sales summary)
+- ✅ check daily sales summary (revenue, bills, payment mix, avg bill, discounts)
+- ✅ order queue + status flow (`/pos/orders`, API too)
+- ✅ stock control (counts, alerts, oversell guards)
 
-- admin logs in
-- add or update food items and prices
-- staff creates new bill
-- add menu items to bill
-- apply quantity, discounts, or notes
-- choose payment mode
-- print receipt
-- save sale and show in dashboard
-- check daily sales summary
-
-This is enough to make your project genuinely useful for a busy outlet.
+Remaining for a genuinely complete outlet MVP: payment-mode buttons, order-type selector, refunds, hourly/best-seller reports, table numbers.
 
 ---
 
@@ -182,11 +170,14 @@ This is enough to make your project genuinely useful for a busy outlet.
 
 Skip these for now:
 
-- multi-branch support
+- multi-branch support (note: the schema is already multi-store/tenant-scoped,
+  but there is no multi-branch management UI — one store per owner account today)
 - online ordering website
-- customer app
+- customer app (note: the Flutter app is a *staff* app — billing, queue,
+  wallet — not a customer self-ordering app)
 - delivery driver system
-- loyalty points
+- loyalty points (note: a staff wallet + Razorpay recharge + 1%-per-bill
+  debit already exists; customer-facing loyalty would build on it)
 - marketing platform
 - franchise model
 
@@ -196,22 +187,23 @@ These are good later, but not necessary for the first version of a food outlet b
 
 ## 8. Suggested business path
 
-### Phase 1: POS and billing
+### Phase 1: POS and billing — ✅ done
 
 - menu management
 - order creation
 - bill generation
-- payment handling
+- payment handling (engine; web UI cash/UPI)
 - receipt printing
 - sales summary
 
-### Phase 2: operations
+### Phase 2: operations — ✅ mostly done
 
-- stock management
-- kitchen order queue
-- staff shifts
-- discounts and refunds
-- sales reports
+- ✅ stock management
+- ✅ kitchen order queue
+- ✅ discounts (bill-level, audited)
+- ❌ staff shifts
+- ❌ refunds (beyond cancel-void)
+- ⚠️ sales reports (daily done; hourly/best-sellers/export missing)
 
 ### Phase 3: scale
 
@@ -224,15 +216,18 @@ These are good later, but not necessary for the first version of a food outlet b
 
 ## 9. Final advice
 
-You already have the foundation for a real food outlet billing software.
+You already have more than the foundation — billing, kitchen queue, stock
+control, wallet, audit trail, mobile staff app, and 43 passing tests are built.
 
-What you should add next is not customer-facing complexity — it is speed and professionalism in the bill-taking process.
+What you should add next is not customer-facing complexity — it is finishing
+the cashier counter: all payment buttons, order-type selector, refunds, and
+the reports an owner checks every night (hourly, best-sellers).
 
 The right next step is:
 
-Make the system work like a real busy restaurant cashier counter.
+Make the web POS accept every payment mode and order type the engine already supports, then deepen reporting.
 
-If the cashier can open the menu, add items, generate the bill, accept payment, print receipt, and save the sale quickly, then the product is ready for real business use.
+If the cashier can open the menu, add items, generate the bill, accept any payment, print receipt, and save the sale quickly — and the owner can see hourly and best-seller numbers — then the product is ready for real business use.
 
 ---
 
