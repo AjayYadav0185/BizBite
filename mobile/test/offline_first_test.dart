@@ -5,11 +5,11 @@
 // local bill number derivation, and the push-then-pull conflict policy.
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:BizBite/core/utils/device_info.dart';
-import 'package:BizBite/features/menu/data/models/food_item_model.dart';
-import 'package:BizBite/features/orders/cart_controller.dart';
-import 'package:BizBite/features/orders/data/models/order_models.dart';
-import 'package:BizBite/features/orders/data/repositories/order_repository.dart';
+import 'package:bizbite/core/utils/device_info.dart';
+import 'package:bizbite/features/menu/data/models/food_item_model.dart';
+import 'package:bizbite/features/orders/cart_controller.dart';
+import 'package:bizbite/features/orders/data/models/order_models.dart';
+import 'package:bizbite/features/orders/data/repositories/order_repository.dart';
 
 void main() {
   test('idempotency keys are RFC-4122 v4 shaped (server UNIQUE column)', () {

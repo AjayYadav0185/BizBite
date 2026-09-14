@@ -15,8 +15,7 @@ import 'razorpay_checkout.dart';
 ///   2. [recharge] runs initiate → Razorpay overlay → verify and refreshes
 ///      the snapshot so the UI shows the credited balance immediately.
 class WalletController with ChangeNotifier implements Listenable {
-  WalletController({required WalletRepository repository})
-      : _repository = repository;
+  WalletController({required this._repository});
 
   final WalletRepository _repository;
 

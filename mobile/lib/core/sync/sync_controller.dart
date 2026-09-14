@@ -13,10 +13,8 @@ import '../network/dio_client.dart';
 enum SyncBannerState { online, offline, syncing, failed }
 
 class SyncController with ChangeNotifier {
-  // ignore: prefer_initializing_formals
-  SyncController({required DioClient client, Connectivity? connectivity})
-      : _client = client,
-        _connectivity = connectivity ?? Connectivity();
+  SyncController({required this._client, Connectivity? connectivity})
+      : _connectivity = connectivity ?? Connectivity();
 
   final DioClient _client;
   final Connectivity _connectivity;
