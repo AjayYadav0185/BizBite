@@ -45,6 +45,8 @@ final class MenuManager extends Component
         'category_id' => null,
         'name' => '',
         'price' => null,
+        'stock_quantity' => null,
+        'low_stock_threshold' => 5,
     ];
 
     public ?int $editingItemId = null;
@@ -53,6 +55,8 @@ final class MenuManager extends Component
         'name' => '',
         'price' => null,
         'category_id' => null,
+        'stock_quantity' => null,
+        'low_stock_threshold' => 5,
     ];
 
     public function mount(): void
@@ -67,6 +71,43 @@ final class MenuManager extends Component
             ->with(['foodItems' => fn ($query) => $query->orderBy('name')])
             ->orderBy('name')
             ->get();
+    }
+
+    /**
+     * Tracked items at or below their re-order threshold — the owner-facing
+     * low-stock alert (§4.6). Empty box = stock not tracked = never alerts.
+     */
+    #[Computed]
+    public function lowStockItems(): Collection
+    {
+        return FoodItem::query()
+            ->whereNotNull('stock_quantity')
+            ->whereColumn('stock_quantity', '<=', 'low_stock_threshold')
+            ->orderBy('stock_quantity')
+            ->get();
+    }
+
+    /**
+     * Normalize a stock input: an empty box means "don't track stock" (NULL),
+     * anything numeric is stored as a non-negative integer.
+     */
+    private function normalizeStock(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return max((int) $value, 0);
+    }
+
+    /** Normalize the re-order threshold (falls back to the column default 5). */
+    private function normalizeThreshold(mixed $value): int
+    {
+        if ($value === null || $value === '') {
+            return 5;
+        }
+
+        return max((int) $value, 0);
     }
 
     // -----------------------------------------------------------------
@@ -193,10 +234,14 @@ final class MenuManager extends Component
             'newItem.category_id' => ['required', 'integer'],
             'newItem.name' => ['required', 'min:2', 'max:80'],
             'newItem.price' => ['required', 'numeric', 'min:0.5', 'max:999999'],
+            'newItem.stock_quantity' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+            'newItem.low_stock_threshold' => ['nullable', 'integer', 'min:0', 'max:1000000'],
         ], [], [
             'newItem.category_id' => 'category',
             'newItem.name' => 'item name',
             'newItem.price' => 'price',
+            'newItem.stock_quantity' => 'stock quantity',
+            'newItem.low_stock_threshold' => 'low stock alert level',
         ]);
 
         // Guard against injecting another store's category id: the lookup
@@ -209,6 +254,9 @@ final class MenuManager extends Component
             'name' => trim($this->newItem['name']),
             'price' => round((float) $this->newItem['price'], 2),
             'is_available' => true,
+            // Stock control (§4.6): blank = untracked, number = counted.
+            'stock_quantity' => $this->normalizeStock($this->newItem['stock_quantity'] ?? null),
+            'low_stock_threshold' => $this->normalizeThreshold($this->newItem['low_stock_threshold'] ?? null),
         ]);
 
         Audit::record(
@@ -252,6 +300,8 @@ final class MenuManager extends Component
             'name' => $item->name,
             'price' => (string) $item->price,
             'category_id' => $item->category_id,
+            'stock_quantity' => $item->stock_quantity,
+            'low_stock_threshold' => $item->low_stock_threshold ?? 5,
         ];
     }
 
@@ -261,10 +311,14 @@ final class MenuManager extends Component
             'editingItem.name' => ['required', 'min:2', 'max:80'],
             'editingItem.price' => ['required', 'numeric', 'min:0.5', 'max:999999'],
             'editingItem.category_id' => ['required', 'integer'],
+            'editingItem.stock_quantity' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+            'editingItem.low_stock_threshold' => ['nullable', 'integer', 'min:0', 'max:1000000'],
         ], [], [
             'editingItem.name' => 'item name',
             'editingItem.price' => 'price',
             'editingItem.category_id' => 'category',
+            'editingItem.stock_quantity' => 'stock quantity',
+            'editingItem.low_stock_threshold' => 'low stock alert level',
         ]);
 
         Category::findOrFail($this->editingItem['category_id']);
@@ -273,14 +327,18 @@ final class MenuManager extends Component
         $oldName = $item->name;
         $oldPrice = (string) $item->price;
         $oldCategoryId = $item->category_id;
+        $oldStock = $item->stock_quantity;
 
         $newName = trim($this->editingItem['name']);
         $newPrice = number_format(round((float) $this->editingItem['price'], 2), 2, '.', '');
+        $newStock = $this->normalizeStock($this->editingItem['stock_quantity'] ?? null);
 
         $item->update([
             'name' => $newName,
             'price' => $newPrice,
             'category_id' => (int) $this->editingItem['category_id'],
+            'stock_quantity' => $newStock,
+            'low_stock_threshold' => $this->normalizeThreshold($this->editingItem['low_stock_threshold'] ?? null),
         ]);
 
         // Price changes get their own first-class action — this is the log
@@ -312,10 +370,24 @@ final class MenuManager extends Component
             );
         }
 
+        // Stock edits are audited separately: the owner reviews who adjusted
+        // counts and when (stock shrinkage is a trust event).
+        if ($oldStock !== $newStock) {
+            Audit::record(
+                auth()->user(),
+                AuditLog::ACTION_STOCK_UPDATED,
+                'Stock for "'.$newName.'" changed from '.($oldStock === null ? 'untracked' : $oldStock)
+                    .' to '.($newStock === null ? 'untracked' : $newStock).'.',
+                entityType: 'food_item',
+                entityId: $item->id,
+                entityName: $newName,
+                old: ['stock_quantity' => $oldStock],
+                new: ['stock_quantity' => $newStock],
+            );
+        }
+
         $this->cancelItemEdit();
     }
-
-    public function cancelItemEdit(): void
     {
         $this->reset('editingItemId', 'editingItem');
     }

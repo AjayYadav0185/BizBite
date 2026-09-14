@@ -59,6 +59,66 @@ class PosBillingTest extends TestCase
         $this->assertSame(2, $order->items()->sum('quantity'));
     }
 
+    public function test_cashier_can_apply_a_discount_and_a_note_to_the_bill(): void
+    {
+        $store = Store::factory()->create();
+        $user = User::factory()->create([
+            'store_id' => $store->id,
+            'role' => UserRole::Cashier,
+        ]);
+        $item = FoodItem::factory()->create([
+            'store_id' => $store->id,
+            'price' => 100.00,
+            'is_available' => true,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(BillingDashboard::class)
+            ->call('addItem', $item->id)
+            ->set('discountInput', '20')
+            ->set('notesInput', 'No onion')
+            ->assertSet('cartDiscount', '20.00')       // computed: clamped & sanitized
+            ->assertSet('cartGrandTotal', '80.00')
+            ->call('checkout', 'cash')
+            ->assertDispatched('trigger-print')
+            ->assertSet('discountInput', '')
+            ->assertSet('notesInput', '');
+
+        $this->assertDatabaseHas('tbl_pos_orders', [
+            'store_id' => $store->id,
+            'subtotal' => 100.00,
+            'discount_amount' => 20.00,
+            'total_amount' => 80.00,
+            'notes' => 'No onion',
+        ]);
+    }
+
+    public function test_discount_is_clamped_to_the_subtotal_and_blank_input_is_ignored(): void
+    {
+        $store = Store::factory()->create();
+        $user = User::factory()->create([
+            'store_id' => $store->id,
+            'role' => UserRole::Cashier,
+        ]);
+        $item = FoodItem::factory()->create([
+            'store_id' => $store->id,
+            'price' => 50.00,
+            'is_available' => true,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(BillingDashboard::class)
+            ->call('addItem', $item->id)
+            ->set('discountInput', '999')
+            ->assertSet('cartDiscount', '50.00')        // never exceeds subtotal
+            ->assertSet('cartGrandTotal', '0.00');
+
+        Livewire::actingAs($user)
+            ->test(BillingDashboard::class)
+            ->set('discountInput', 'abc')
+            ->assertSet('cartDiscount', '0.00');        // non-numeric -> no discount
+    }
+
     public function test_settling_with_an_empty_cart_shows_an_error_and_creates_no_order(): void
     {
         $store = Store::factory()->create();

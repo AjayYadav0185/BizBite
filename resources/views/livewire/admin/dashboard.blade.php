@@ -36,6 +36,10 @@
                             $tab === 'logs' ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-600 hover:bg-brand-50'])>
                     Audit Logs
                 </button>
+                <a href="{{ route('pos.orders') }}"
+                   class="rounded-xl border border-card-border px-3.5 py-2 text-slate-600 transition hover:bg-brand-50">
+                    Order Queue
+                </a>
                 <a href="{{ route('pos.billing') }}"
                    class="ml-2 rounded-xl bg-brand-500 px-4 py-2 text-white shadow-sm transition hover:bg-brand-400">
                     POS →
@@ -80,6 +84,10 @@
                             <span>Audit Logs</span>
                             @if ($tab === 'logs')<span class="text-brand-200">●</span>@endif
                         </button>
+                        <a href="{{ route('pos.orders') }}"
+                           class="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-brand-50">
+                            <span>Order Queue</span><span>→</span>
+                        </a>
                         <a href="{{ route('pos.billing') }}"
                            class="flex items-center justify-between rounded-xl bg-brand-500 px-3 py-2.5 text-sm font-bold text-white">
                             <span>Open POS</span><span class="text-brand-200">→</span>

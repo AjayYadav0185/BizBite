@@ -3,6 +3,7 @@
 use App\Livewire\Admin\Dashboard as AdminDashboard;
 use App\Livewire\Auth\Login;
 use App\Livewire\Pos\BillingDashboard;
+use App\Livewire\Pos\OrderQueue;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -52,6 +53,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/pos', BillingDashboard::class)
         ->middleware('role:admin,cashier')
         ->name('pos.billing');
+
+    // STAFF POS PORTAL — kitchen/counter order queue (§4.4/§4.5). Live board
+    // for advancing bills through pending → preparing → ready → completed.
+    Route::get('/pos/orders', OrderQueue::class)
+        ->middleware('role:admin,cashier')
+        ->name('pos.orders');
 
     // OWNER ADMIN PORTAL — business setup & telemetry (admin only).
     Route::get('/admin', AdminDashboard::class)

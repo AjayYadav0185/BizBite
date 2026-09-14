@@ -40,6 +40,7 @@ class Order extends Model
         'invoice_number',
         'customer_name',
         'customer_phone',
+        'notes',
         'idempotency_key',
     ];
 

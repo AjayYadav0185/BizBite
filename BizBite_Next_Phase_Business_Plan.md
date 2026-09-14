@@ -1,25 +1,51 @@
 # BizBite — Focused Next Phase Plan
 
-## 1. What you already have
+## 0. Current project stage (live update)
 
-This project already has the base of a busy food outlet billing system.
+The core POS and billing system is **built and working**. This is no longer a
+plan on paper — Phase 1 is essentially complete.
 
-You already have:
+**What is already built and running:**
 
-- admin login and role system
-- cashier / staff access
-- product categories
-- food items with price
-- order records
-- store-specific setup
-- POS-style billing dashboard
-- order status structure
-- print header/footer for bills
-- Laravel backend with Livewire interface
+- Laravel backend (Aspirin/Livewire) with native PHP 8.4 enums and typed models
+- Multi-store (tenant) architecture — every table is store-scoped via `StoreScope`
+- Admin portal (Laravel Livewire):
+  - role login (admin / cashier split)
+  - menu manager (categories, food items, prices, veg/non-veg/egg, GST slabs)
+  - sales summary (today's revenue, bill count, payment-mode mix, recent bills)
+  - receipt customizer (print header/footer for bills)
+  - audit log viewer (owner audit trail)
+- POS billing dashboard (Laravel Livewire, keyboard-first):
+  - live search + category filter menu grid
+  - instant add / quantity steppers / cart editing
+  - live totals (BCMath, GST computed per item slab, discount, round-off)
+  - payment selection — cash and UPI
+  - checkout via shared `OrderService`, native thermal print dialog, receipt data
+  - shortcuts: F2 clear cart, F4 focus search, F8 cash checkout, F9 UPI checkout
+- Order engine (`OrderService`) shared by web POS and mobile API:
+  - subtotal / discount / tax / round-off / total
+  - invoice number + order number, idempotency key, UPI reference
+  - order types (dine_in, takeaway, parcel, delivery)
+  - order statuses (pending, preparing, ready, completed, cancelled)
+  - payment modes enum (cash, upi, card, credit, split)
+- JSON API (Sanctum tokens) for the mobile apps
+- Wallet system + Razorpay recharge + payment verification
+- **Flutter mobile app** (`mobile/`):
+  - auth, menu browsing, cart, order checkout, receipt screen, POS screen
+  - offline-first: local SQLite, menu cache, outbox + sync orchestrator
+- Production reliability basics: validations, error handling, audit logs,
+  DB migrations, seeding, Docker setup, sync queue for offline ordering
 
-This means your project is already strong in one important area:
+**Still missing (the real next phase):**
 
-- generating bills and handling food outlet sales
+- inventory / stock tracking (no stock count field exists)
+- kitchen / counter order queue (statuses exist, no kitchen screen)
+- card / credit / split payment flows (enum exists, POS UI is cash + UPI only)
+- order-type selector in the POS UI (dine-in / takeaway / delivery)
+- refunds, staff shifts, hourly sales / best-seller reports
+- table management
+
+So the current stage = **Phase 1 (POS + billing) done, Phase 2 (operations) started**. The next work should focus on operations: stock, kitchen queue, payments, and deeper reports.
 
 ---
 

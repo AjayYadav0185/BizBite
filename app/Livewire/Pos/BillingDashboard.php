@@ -63,6 +63,16 @@ final class BillingDashboard extends Component
     /** Cashier-facing success banner. */
     public ?string $success = null;
 
+    /**
+     * Bill-level discount in rupees, typed by the cashier. Kept as a string so
+     * an empty input stays empty; {@see self::cartDiscount()} sanitizes and
+     * clamps it against the subtotal on every render (MVP scope §6).
+     */
+    public string $discountInput = '';
+
+    /** Free-text kitchen / customer note printed on the bill (max 200 chars). */
+    public string $notesInput = '';
+
     /** Shared checkout service (also used by the Flutter API controller). */
     private OrderService $orders;
 
@@ -123,6 +133,23 @@ final class BillingDashboard extends Component
             return;
         }
 
+        // Stock control (priority feature §5): never let the cart exceed the
+        // tracked shelf count. OrderService re-checks this at checkout, so the
+        // guarantee holds even if another cashier drains the stock meanwhile.
+        if ($item->isOutOfStock()) {
+            $this->error = $item->name.' is out of stock.';
+
+            return;
+        }
+
+        $inCart = $this->cart[$foodItemId]['quantity'] ?? 0;
+
+        if (! $item->canFulfil($inCart + 1)) {
+            $this->error = 'Only '.max((int) $item->stock_quantity, 0).' left for '.$item->name.'.';
+
+            return;
+        }
+
         if (isset($this->cart[$foodItemId])) {
             $this->cart[$foodItemId]['quantity']++;
         } else {
@@ -139,9 +166,22 @@ final class BillingDashboard extends Component
 
     public function incrementQuantity(int $foodItemId): void
     {
-        if (isset($this->cart[$foodItemId])) {
-            $this->cart[$foodItemId]['quantity']++;
+        if (! isset($this->cart[$foodItemId])) {
+            return;
         }
+
+        $item = FoodItem::query()->find($foodItemId);
+
+        if ($item !== null && ! $item->canFulfil($this->cart[$foodItemId]['quantity'] + 1)) {
+            $this->error = $item->tracksStock()
+                ? 'Only '.max((int) $item->stock_quantity, 0).' left for '.$item->name.'.'
+                : $item->name.' is no longer available.';
+
+            return;
+        }
+
+        $this->cart[$foodItemId]['quantity']++;
+        $this->error = null;
     }
 
     public function decrementQuantity(int $foodItemId): void
@@ -163,7 +203,7 @@ final class BillingDashboard extends Component
     #[On('shortcut-clear-cart')]
     public function clearCart(): void
     {
-        $this->reset('cart', 'error', 'success');
+        $this->reset('cart', 'error', 'success', 'discountInput', 'notesInput');
         $this->paymentMode = 'cash';
     }
 
@@ -194,6 +234,35 @@ final class BillingDashboard extends Component
     public function cartCount(): int
     {
         return array_sum(array_column($this->cart, 'quantity'));
+    }
+
+    /**
+     * Sanitized, clamped bill-level discount.
+     *
+     * Empty / non-numeric input resolves to "0.00" and the discount can never
+     * exceed the subtotal — the same upper bound OrderService enforces server
+     * side, so the displayed payable amount always matches the saved bill.
+     */
+    #[Computed]
+    public function cartDiscount(): string
+    {
+        if (! is_numeric($this->discountInput)) {
+            return '0.00';
+        }
+
+        $discount = number_format(max((float) $this->discountInput, 0), 2, '.', '');
+
+        return bccomp($discount, $this->cartTotal, 2) > 0 ? $this->cartTotal : $discount;
+    }
+
+    /**
+     * Provisional amount payable after the discount. The server applies the
+     * final Indian rupee round-off inside OrderService at checkout.
+     */
+    #[Computed]
+    public function cartGrandTotal(): string
+    {
+        return bcsub($this->cartTotal, $this->cartDiscount, 2);
     }
 
     // ---------------------------------------------------------------------
@@ -241,6 +310,10 @@ final class BillingDashboard extends Component
                     array_values($this->cart)
                 ),
                 'payment_mode' => $mode,
+                // MVP scope §6: bill-level discount + free-text note travel
+                // with the cart; OrderService re-validates both server side.
+                'discount_amount' => $this->cartDiscount,
+                'notes' => substr(trim($this->notesInput), 0, 200) ?: null,
             ]);
         } catch (OrderPlacementException $exception) {
             $this->error = $exception->getMessage();
@@ -253,7 +326,7 @@ final class BillingDashboard extends Component
         $this->success = sprintf('Bill %s settled — ₹%s', $receipt->order->order_number, $receipt->totalAmount);
 
         // ...then reset the cart for the next customer...
-        $this->reset('cart');
+        $this->reset('cart', 'discountInput', 'notesInput');
         $this->paymentMode = PaymentMode::Cash->value;
 
         // ...and fire the browser event that triggers the native print dialog.

@@ -50,6 +50,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/orders', [OrderApiController::class, 'store'])
         ->middleware('role:admin,cashier');
 
+    // GET /api/orders — today's kitchen/counter queue for the caller's store
+    // (status transitions are shared with the web OrderQueue board).
+    Route::get('/orders', [OrderApiController::class, 'index'])
+        ->middleware('role:admin,cashier');
+
+    // PATCH /api/orders/{order}/status — move a bill through the fulfilment
+    // flow (pending → preparing → ready → completed, or cancelled).
+    Route::patch('/orders/{order}/status', [OrderApiController::class, 'updateStatus'])
+        ->middleware('role:admin,cashier');
+
     // Admin-only menu writes for the Flutter Store console.
     // Reads stay on GET /api/menu; writes mirror Livewire MenuManager
     // validation and are tenant-scoped via the global StoreScope.

@@ -53,10 +53,16 @@
             <span class="rounded border border-slate-700 bg-slate-800 px-2 py-1 font-mono">F9</span> UPI
         </div>
 
-        <form method="POST" action="{{ route('logout') }}" class="print:hidden">
-            @csrf
-            <button type="submit" class="text-xs font-semibold text-slate-400 hover:text-red-400">Logout</button>
-        </form>
+        <div class="flex items-center gap-3 print:hidden">
+            <a href="{{ route('pos.orders') }}"
+               class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 transition hover:border-emerald-500 hover:text-emerald-400">
+                Order Queue →
+            </a>
+            <form method="POST" action="{{ route('logout') }}">
+                @csrf
+                <button type="submit" class="text-xs font-semibold text-slate-400 hover:text-red-400">Logout</button>
+            </form>
+        </div>
     </header>
 
     {{-- ---------------------------------------------------- FLASH --}}
@@ -103,12 +109,22 @@
                 @forelse ($this->menuItems as $item)
                     <button
                         wire:key="menu-{{ $item->id }}"
-                        wire:click="addItem({{ $item->id }})"
-                        class="group flex flex-col items-start rounded-xl border border-slate-800 bg-slate-900 p-4 text-left transition hover:border-emerald-500 hover:bg-slate-800 active:scale-[.97]"
+                        @if ($item->isOutOfStock()) disabled @else wire:click="addItem({{ $item->id }})" @endif
+                        @class([
+                            'group flex flex-col items-start rounded-xl border p-4 text-left transition',
+                            $item->isOutOfStock()
+                                ? 'cursor-not-allowed border-slate-800 bg-slate-900/50 opacity-60'
+                                : 'border-slate-800 bg-slate-900 hover:border-emerald-500 hover:bg-slate-800 active:scale-[.97]',
+                        ])
                     >
                         <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $item->category?->name }}</span>
                         <span class="mt-1 text-sm font-bold leading-snug">{{ $item->name }}</span>
-                        <span class="mt-2 text-base font-black text-emerald-400">₹{{ $item->price }}</span>
+                        <span @class(['mt-2 text-base font-black', $item->isOutOfStock() ? 'text-slate-500 line-through' : 'text-emerald-400'])>₹{{ $item->price }}</span>
+                        @if ($item->isOutOfStock())
+                            <span class="mt-1.5 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-red-300">Sold out</span>
+                        @elseif ($item->isLowStock())
+                            <span class="mt-1.5 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-300">Only {{ $item->stock_quantity }} left</span>
+                        @endif
                     </button>
                 @empty
                     <p class="col-span-full rounded-xl border border-dashed border-slate-700 p-10 text-center text-sm text-slate-400">
@@ -153,9 +169,38 @@
             </ul>
 
             <div class="border-t border-slate-800 px-4 py-4">
+                {{-- Bill-level discount + free-text note (MVP scope §6) --}}
+                <div class="mb-3 grid grid-cols-2 gap-2">
+                    <label class="block">
+                        <span class="text-[11px] font-black uppercase tracking-widest text-slate-400">Discount ₹</span>
+                        <input type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"
+                               wire:model.live.debounce.400ms="discountInput"
+                               class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-bold text-white outline-none focus:border-emerald-500" />
+                    </label>
+                    <label class="block">
+                        <span class="text-[11px] font-black uppercase tracking-widest text-slate-400">Note</span>
+                        <input type="text" maxlength="200" placeholder="e.g. no onion"
+                               wire:model.live.debounce.400ms="notesInput"
+                               class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
+                    </label>
+                </div>
+
+                <div class="mb-2 space-y-1 text-xs text-slate-400">
+                    <div class="flex justify-between">
+                        <span>Subtotal</span>
+                        <span class="tabular-nums">₹{{ $this->cartTotal }}</span>
+                    </div>
+                    @if (bccomp($this->cartDiscount, '0', 2) > 0)
+                        <div class="flex justify-between text-amber-400">
+                            <span>Discount</span>
+                            <span class="tabular-nums">−₹{{ $this->cartDiscount }}</span>
+                        </div>
+                    @endif
+                </div>
+
                 <div class="mb-3 flex items-center justify-between text-lg">
                     <span class="font-bold text-slate-300">TOTAL</span>
-                    <span class="font-black text-emerald-400">₹{{ $this->cartTotal }}</span>
+                    <span class="font-black text-emerald-400">₹{{ $this->cartGrandTotal }}</span>
                 </div>
 
                 <div class="mb-3 grid grid-cols-2 gap-2" role="group" aria-label="Payment mode">
@@ -186,7 +231,7 @@
         <div class="flex items-center justify-between gap-3">
             <div class="flex items-center gap-2">
                 <span class="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-bold text-emerald-400">{{ $this->cartCount }} items</span>
-                <span class="text-sm font-black text-emerald-400">₹{{ $this->cartTotal }}</span>
+                <span class="text-sm font-black text-emerald-400">₹{{ $this->cartGrandTotal }}</span>
             </div>
             <a href="#pos-cart" class="rounded-lg bg-emerald-500 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-950">View Bill ↓</a>
         </div>
@@ -242,6 +287,16 @@
                 @endforeach
 
                 <p class="my-1">--------------------------------</p>
+                @if (bccomp((string) ($lastReceipt['discount_amount'] ?? '0.00'), '0', 2) > 0)
+                    <div class="flex justify-between">
+                        <span>Subtotal</span>
+                        <span>{{ $lastReceipt['subtotal'] }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Discount</span>
+                        <span>-{{ $lastReceipt['discount_amount'] }}</span>
+                    </div>
+                @endif
                 <div class="flex justify-between font-bold">
                     <span>TOTAL</span>
                     <span>Rs. {{ $lastReceipt['total_amount'] }}</span>
@@ -250,6 +305,9 @@
                     <span>Paid via</span>
                     <span>{{ $lastReceipt['payment_mode'] }}</span>
                 </div>
+                @if (filled($lastReceipt['notes'] ?? null))
+                    <p class="mt-1">Note: {{ $lastReceipt['notes'] }}</p>
+                @endif
                 <p class="my-1">--------------------------------</p>
 
                 <div class="text-center">

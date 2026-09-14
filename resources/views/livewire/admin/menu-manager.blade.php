@@ -4,6 +4,27 @@
         <p class="text-sm text-slate-500">Add, update and toggle availability of categories & food items — instantly.</p>
     </div>
 
+    {{-- ---------------------------------------------------- LOW STOCK ALERT --}}
+    {{-- Priority feature §5 (stock control): owners see at a glance what is
+         about to run out or is already sold out before the rush hits. --}}
+    @if ($this->lowStockItems->isNotEmpty())
+        <section class="rounded-2xl border border-warn-500/40 bg-warn-50 p-4 shadow-card sm:p-5">
+            <h2 class="text-sm font-black uppercase tracking-widest text-warn-600">⚠ Low Stock Alert</h2>
+            <p class="mt-1 text-xs text-slate-600">Items at or below their alert level. Restock, or set stock to blank for unlimited.</p>
+            <ul class="mt-3 flex flex-wrap gap-2">
+                @foreach ($this->lowStockItems as $item)
+                    <li wire:key="low-{{ $item->id }}"
+                        class="rounded-full border border-warn-500/40 bg-white px-3 py-1 text-xs font-bold text-slate-700">
+                        {{ $item->name }}
+                        <span class="{{ $item->isOutOfStock() ? 'text-red-600' : 'text-warn-600' }}">
+                            {{ $item->isOutOfStock() ? 'sold out' : $item->stock_quantity.' left' }}
+                        </span>
+                    </li>
+                @endforeach
+            </ul>
+        </section>
+    @endif
+
     {{-- ---------------------------------------------------- ADD CATEGORY --}}
     <section class="rounded-2xl border border-card-border bg-white p-4 shadow-card sm:p-5">
         <h2 class="mb-3 text-sm font-black uppercase tracking-widest text-slate-500">Add Category</h2>
@@ -56,6 +77,20 @@
                     <p class="mt-1 text-xs font-semibold text-red-500">{{ $message }}</p>
                 @enderror
             </div>
+            <div>
+                <input type="number" min="0" wire:model="newItem.stock_quantity" placeholder="Stock (blank = ∞)"
+                       class="w-full rounded-xl border border-card-border px-4 py-2.5 text-sm outline-none transition focus:border-brand-500 @error('newItem.stock_quantity') border-red-400 @enderror sm:w-44" />
+                @error('newItem.stock_quantity')
+                    <p class="mt-1 text-xs font-semibold text-red-500">{{ $message }}</p>
+                @enderror
+            </div>
+            <div>
+                <input type="number" min="0" wire:model="newItem.low_stock_threshold" placeholder="Alert at"
+                       class="w-full rounded-xl border border-card-border px-4 py-2.5 text-sm outline-none transition focus:border-brand-500 @error('newItem.low_stock_threshold') border-red-400 @enderror sm:w-28" />
+                @error('newItem.low_stock_threshold')
+                    <p class="mt-1 text-xs font-semibold text-red-500">{{ $message }}</p>
+                @enderror
+            </div>
             <button type="submit" wire:loading.attr="disabled"
                     class="rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-brand-400 disabled:opacity-50">
                 + Add Item
@@ -102,6 +137,7 @@
                         <tr>
                             <th class="px-4 py-2 font-bold sm:px-5">Item</th>
                             <th class="px-4 py-2 font-bold sm:px-5">Price</th>
+                            <th class="px-4 py-2 font-bold sm:px-5">Stock</th>
                             <th class="px-4 py-2 font-bold sm:px-5">Availability</th>
                             <th class="px-4 py-2 text-right font-bold sm:px-5">Actions</th>
                         </tr>
@@ -136,6 +172,28 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 sm:px-5">
+                                @if ($editingItemId === $item->id)
+                                    <div class="flex items-center gap-1">
+                                        <input type="number" min="0" wire:model="editingItem.stock_quantity" placeholder="∞"
+                                               title="Stock count (blank = untracked)"
+                                               class="w-20 rounded-xl border border-card-border px-3 py-2 text-sm outline-none transition focus:border-brand-500 @error('editingItem.stock_quantity') border-red-400 @enderror" />
+                                        <input type="number" min="0" wire:model="editingItem.low_stock_threshold" placeholder="Alert"
+                                               title="Alert when stock reaches this level"
+                                               class="w-16 rounded-xl border border-card-border px-3 py-2 text-sm outline-none transition focus:border-brand-500 @error('editingItem.low_stock_threshold') border-red-400 @enderror" />
+                                    </div>
+                                    @error('editingItem.stock_quantity') <p class="text-xs font-semibold text-red-500">{{ $message }}</p> @enderror
+                                    @error('editingItem.low_stock_threshold') <p class="text-xs font-semibold text-red-500">{{ $message }}</p> @enderror
+                                @elseif (! $item->tracksStock())
+                                    <span class="text-xs font-bold text-slate-400">∞ untracked</span>
+                                @else
+                                    <span @class(['rounded-full px-2.5 py-1 text-xs font-black tabular-nums',
+                                        $item->isOutOfStock() ? 'bg-red-50 text-red-600' : ($item->isLowStock() ? 'bg-warn-50 text-warn-600' : 'bg-brand-50 text-brand-700')])>
+                                        {{ $item->stock_quantity }} left
+                                    </span>
+                                    <span class="ml-1 text-[10px] font-bold uppercase text-slate-400">alert ≤ {{ $item->low_stock_threshold }}</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 sm:px-5">
                                 <button wire:click="toggleItem({{ $item->id }})"
                                         @class(['rounded-full px-3 py-1 text-xs font-black transition',
                                             $item->is_available ? 'bg-brand-50 text-brand-700 hover:bg-brand-100' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'])>
@@ -155,7 +213,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="4" class="px-4 py-6 text-center text-slate-400 sm:px-5">No items in this category yet.</td></tr>
+                        <tr><td colspan="5" class="px-4 py-6 text-center text-slate-400 sm:px-5">No items in this category yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>

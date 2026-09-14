@@ -42,6 +42,21 @@ use Throwable;
  */
 final class OrderService
 {
+    /**
+     * Allowed fulfilment transitions for the kitchen / counter queue (§4.4).
+     *
+     * Forward progress is permissive (you can always skip ahead — a busy
+     * cashier handing over a parcel marks it done immediately), cancellation is
+     * allowed from any live state, and `cancelled` is terminal.
+     */
+    private const STATUS_TRANSITIONS = [
+        'pending' => ['preparing', 'ready', 'completed', 'cancelled'],
+        'preparing' => ['ready', 'completed', 'cancelled'],
+        'ready' => ['completed', 'cancelled'],
+        'completed' => ['cancelled'],
+        'cancelled' => [],
+    ];
+
     public function __construct(private readonly WalletService $wallet) {}
     /**
      * Place (settle) an order.
@@ -54,6 +69,7 @@ final class OrderService
      *                                         'order_type'      => 'dine_in'|'takeaway'|'parcel'|'delivery',
      *                                         'discount_amount' => '20.00',
      *                                         'customer_name'   => '...', 'customer_phone' => '98...',
+     *                                         'notes'           => 'free-text bill note (max 200)',
      *                                         'upi_ref'         => 'UPI txn / UTR',
      *                                         'idempotency_key' => 'client uuid (Flutter offline retry)',
      *                                         ]
@@ -118,14 +134,37 @@ final class OrderService
                 // ---------------------------------------------------------
                 $foodItems = FoodItem::query()
                     ->whereKey($lineItems->pluck('food_item_id')->unique())
+                    ->lockForUpdate()
                     ->get()
                     ->keyBy('id');
 
+                // -----------------------------------------------------------------
+                // OVERSell PROTECTION (priority feature §5: stock control)
+                //
+                // Reject anything missing / toggled off, and anything whose
+                // tracked stock cannot cover the requested quantity. The rows are
+                // row-locked above, so two cashiers racing on the last plate are
+                // serialized and only one of them wins.
+                // -----------------------------------------------------------------
                 $rejected = $lineItems
-                    ->filter(fn (array $line): bool => ! isset($foodItems[$line['food_item_id']])
-                        || ! $foodItems[$line['food_item_id']]->is_available)
-                    ->map(fn (array $line): string => $foodItems[$line['food_item_id']]->name
-                        ?? ('Menu item #'.$line['food_item_id']))
+                    ->map(function (array $line) use ($foodItems): ?string {
+                        $foodItem = $foodItems[$line['food_item_id']] ?? null;
+
+                        if ($foodItem === null) {
+                            return 'Menu item #'.$line['food_item_id'];
+                        }
+
+                        if (! $foodItem->is_available) {
+                            return $foodItem->name;
+                        }
+
+                        if ($foodItem->tracksStock() && $foodItem->stock_quantity < $line['quantity']) {
+                            return $foodItem->name.' (only '.max((int) $foodItem->stock_quantity, 0).' left)';
+                        }
+
+                        return null;
+                    })
+                    ->filter()
                     ->unique()
                     ->values()
                     ->all();
@@ -167,6 +206,21 @@ final class OrderService
                     ];
                 }
 
+                // -----------------------------------------------------------------
+                // STOCK DECREMENT (priority feature §5: stock control)
+                //
+                // Runs inside the same transaction as the bill: a rolled back
+                // checkout restores the shelf count automatically. Items with a
+                // NULL stock_quantity are untracked and skipped.
+                // -----------------------------------------------------------------
+                foreach ($lineItems as $line) {
+                    $foodItem = $foodItems[$line['food_item_id']];
+
+                    if ($foodItem->tracksStock()) {
+                        $foodItem->decrement('stock_quantity', $line['quantity']);
+                    }
+                }
+
                 // Flat bill-level discount (never below zero), then round-off to the rupee.
                 $discountAmount = '0.00';
                 if (isset($payload['discount_amount']) && is_numeric($payload['discount_amount'])) {
@@ -195,6 +249,11 @@ final class OrderService
                 $upiRef = isset($payload['upi_ref']) && is_string($payload['upi_ref'])
                     ? substr(trim($payload['upi_ref']), 0, 60) ?: null
                     : null;
+                // Free-text bill note (kitchen instruction / customer remark).
+                // Sanitized and truncated server side — never trusted as-is.
+                $notes = isset($payload['notes']) && is_string($payload['notes'])
+                    ? substr(trim($payload['notes']), 0, 200) ?: null
+                    : null;
 
                 // ---------------------------------------------------------
                 // COMMIT: order header + immutable snapshot rows + payment leg.
@@ -210,11 +269,15 @@ final class OrderService
                     'total_amount' => $rounded,
                     'payment_mode' => $paymentMode,
                     'payment_status' => PaymentStatus::Paid,
-                    'status' => OrderStatus::Completed,
+                    // Orders enter the kitchen/counter queue as "new" and are
+                    // advanced to completed/cancelled from the OrderQueue board
+                    // (§4.4 order status flow). Payment is collected up front.
+                    'status' => OrderStatus::Pending,
                     'order_type' => $orderType,
                     'upi_ref' => $paymentMode === PaymentMode::Upi ? $upiRef : null,
                     'customer_name' => $customerName,
                     'customer_phone' => $customerPhone,
+                    'notes' => $notes,
                     'idempotency_key' => $idempotencyKey,
                 ]);
 
@@ -290,6 +353,88 @@ final class OrderService
         }
 
         return $receipt;
+    }
+
+    /**
+     * Move a settled bill through the fulfilment flow (§4.4 order status flow).
+     *
+     * Shared by the web OrderQueue board and the Sanctum API so the kitchen
+     * sees identical state on the counter screen and on the Flutter device.
+     * Cancelling a bill is a money/trust event: it writes an owner-visible
+     * audit row AND returns the tracked stock to the shelf, all atomically.
+     *
+     * @throws OrderPlacementException when the transition is not allowed.
+     */
+    public function updateStatus(User $actor, Order $order, OrderStatus $status): Order
+    {
+        $from = $order->status;
+
+        if ($from === $status) {
+            return $order;
+        }
+
+        $allowed = self::STATUS_TRANSITIONS[$from->value] ?? [];
+
+        if (! in_array($status->value, $allowed, strict: true)) {
+            throw new OrderPlacementException(
+                sprintf(
+                    'Bill %s cannot move from %s to %s.',
+                    $order->order_number,
+                    $from->value,
+                    $status->value
+                ),
+                422
+            );
+        }
+
+        return DB::transaction(function () use ($actor, $order, $from, $status): Order {
+            $order->update(['status' => $status]);
+
+            // A cancelled bill is voided: put tracked stock back on the shelf.
+            // (Stock was decremented inside the original checkout transaction.)
+            if ($status === OrderStatus::Cancelled) {
+                $this->restoreStock($order);
+            }
+
+            Audit::record(
+                $actor,
+                $status === OrderStatus::Cancelled
+                    ? AuditLog::ACTION_ORDER_CANCELLED
+                    : AuditLog::ACTION_ORDER_STATUS,
+                $status === OrderStatus::Cancelled
+                    ? 'Bill '.$order->order_number.' cancelled (₹'.number_format((float) $order->total_amount, 2).' voided).'
+                    : 'Bill '.$order->order_number.' marked '.$status->label().'.',
+                entityType: 'order',
+                entityId: $order->id,
+                entityName: $order->order_number,
+                old: ['status' => $from->value],
+                new: ['status' => $status->value],
+                amount: (string) $order->total_amount,
+            );
+
+            return $order->fresh(['items', 'user:id,name']);
+        });
+    }
+
+    /**
+     * Return the line quantities of a voided bill to the shelf.
+     *
+     * Only tracked items are touched (NULL stock_quantity = untracked), and the
+     * tenant scope keeps the increment on the caller's own menu.
+     */
+    private function restoreStock(Order $order): void
+    {
+        foreach ($order->items()->get() as $item) {
+            if ($item->food_item_id === null) {
+                continue;
+            }
+
+            $foodItem = FoodItem::query()->whereKey($item->food_item_id)->first();
+
+            if ($foodItem !== null && $foodItem->tracksStock()) {
+                $foodItem->increment('stock_quantity', $item->quantity);
+            }
+        }
     }
 
     /**

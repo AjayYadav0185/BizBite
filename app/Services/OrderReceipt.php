@@ -64,6 +64,7 @@ final class OrderReceipt
         public readonly ?string $customerPhone = null,
         public readonly string $walletDeduction = '0.00',
         public readonly ?string $walletBalanceAfter = null,
+        public readonly ?string $notes = null,
     ) {}
 
     /**
@@ -96,6 +97,8 @@ final class OrderReceipt
             'upi_ref' => $this->upiRef ?? $this->order->upi_ref,
             'customer_name' => $this->customerName ?? $this->order->customer_name,
             'customer_phone' => $this->customerPhone ?? $this->order->customer_phone,
+            // Free-text bill note the cashier captured at checkout.
+            'notes' => $this->notes ?? $this->order->notes,
             // Customer Wallet: 1% points movement for this bill.
             'wallet_deduction' => $this->walletDeduction,
             'wallet_balance_after' => $this->walletBalanceAfter,
@@ -173,6 +176,7 @@ final class OrderReceipt
             customerPhone: $order->customer_phone,
             walletDeduction: $walletDeduction,
             walletBalanceAfter: $walletBalanceAfter,
+            notes: $order->notes,
         );
     }
 }

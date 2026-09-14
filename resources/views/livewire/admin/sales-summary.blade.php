@@ -11,7 +11,7 @@
     </div>
 
     {{-- ---------------------------------------------------- KPI TILES --}}
-    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="rounded-2xl border border-card-border bg-white p-5 shadow-card">
             <p class="text-xs font-black uppercase tracking-widest text-slate-400">Today's Revenue</p>
             <p class="mt-2 text-3xl font-black tabular-nums text-brand-600">₹{{ number_format((float) $this->todaysStats['revenue'], 2) }}</p>
@@ -20,7 +20,12 @@
         <div class="rounded-2xl border border-card-border bg-white p-5 shadow-card">
             <p class="text-xs font-black uppercase tracking-widest text-slate-400">Total Bills</p>
             <p class="mt-2 text-3xl font-black tabular-nums text-brand-600">{{ $this->todaysStats['bills'] }}</p>
-            <p class="mt-1 text-xs text-slate-400">Completed settlements today</p>
+            <p class="mt-1 text-xs text-slate-400">Settled bills today (voided excluded)</p>
+        </div>
+        <div class="rounded-2xl border border-card-border bg-white p-5 shadow-card">
+            <p class="text-xs font-black uppercase tracking-widest text-slate-400">Discounts Given</p>
+            <p class="mt-2 text-3xl font-black tabular-nums text-warn-600">₹{{ number_format((float) $this->todaysStats['discounts'], 2) }}</p>
+            <p class="mt-1 text-xs text-slate-400">Bill-level discounts today</p>
         </div>
         <div class="rounded-2xl border border-card-border bg-white p-5 shadow-card sm:col-span-2 lg:col-span-1">
             <p class="text-xs font-black uppercase tracking-widest text-slate-400">Payment Mix</p>
@@ -63,7 +68,12 @@
                 <tbody class="divide-y divide-surface-subtle">
                     @forelse ($this->recentBills as $bill)
                         <tr wire:key="bill-{{ $bill->id }}" class="hover:bg-brand-50/60">
-                            <td class="px-4 py-3 font-mono text-xs font-bold text-slate-700 sm:px-5">{{ $bill->order_number }}</td>
+                            <td class="px-4 py-3 font-mono text-xs font-bold text-slate-700 sm:px-5">
+                                {{ $bill->order_number }}
+                                @if ($bill->status === \App\Models\Enums\OrderStatus::Cancelled)
+                                    <span class="ml-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-black uppercase text-red-500">Void</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3 text-slate-600 sm:px-5">{{ $bill->user?->name ?? '—' }}</td>
                             <td class="px-4 py-3 sm:px-5">
                                 <span class="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-black uppercase text-brand-700">{{ $bill->payment_mode->value }}</span>

@@ -30,11 +30,14 @@ final class SalesSummary extends Component
     public function todaysStats(): array
     {
         $base = Order::query()
-            ->where('status', 'completed')
+            // Every checkout is paid up front, so revenue = all bills EXCEPT
+            // voided ones (a cancelled order is refunded/voided at the counter).
+            ->where('status', '!=', 'cancelled')
             ->whereDate('created_at', now()->toDateString());
 
         $billsCount = (clone $base)->count();
         $totalRevenue = (string) (clone $base)->sum('total_amount');
+        $totalDiscounts = (string) (clone $base)->sum('discount_amount');
 
         $breakdown = (clone $base)
             ->selectRaw('payment_mode, COUNT(*) as bills, SUM(total_amount) as revenue')
@@ -59,6 +62,7 @@ final class SalesSummary extends Component
         return [
             'revenue' => $totalRevenue,
             'bills' => $billsCount,
+            'discounts' => $totalDiscounts,
             'average_bill' => $billsCount > 0
                 ? bcdiv($totalRevenue, (string) $billsCount, 2)
                 : '0',
@@ -73,7 +77,7 @@ final class SalesSummary extends Component
             ->with('user:id,name')
             ->latest('created_at')
             ->limit($this->recentLimit)
-            ->get(['id', 'order_number', 'total_amount', 'payment_mode', 'user_id', 'created_at']);
+            ->get(['id', 'order_number', 'total_amount', 'payment_mode', 'status', 'user_id', 'created_at']);
     }
 
     public function render()
