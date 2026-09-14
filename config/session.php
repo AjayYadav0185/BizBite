@@ -86,7 +86,7 @@ return [
     |
     */
 
-    'table' => env('SESSION_TABLE', 'tbl_sessions'),
+    'table' => env('SESSION_TABLE', 'tbl_pos_sessions'),
 
     /*
     |--------------------------------------------------------------------------

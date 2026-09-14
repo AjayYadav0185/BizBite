@@ -27,7 +27,7 @@ return new class extends Migration
             $table->timestamp('created_at')->nullable();
         });
 
-        Schema::create('tbl_sessions', function (Blueprint $table) {
+        Schema::create('tbl_pos_sessions', function (Blueprint $table) {
             $table->string('id')->primary();
             $table->foreignId('user_id')->nullable()->index();
             $table->string('ip_address', 45)->nullable();
@@ -42,8 +42,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('tbl_users');
-        Schema::dropIfExists('tbl_password_reset_tokens');
-        Schema::dropIfExists('tbl_sessions');
+        Schema::dropIfExists('tbl_pos_users');
+        Schema::dropIfExists('tbl_pos_password_reset_tokens');
+        Schema::dropIfExists('tbl_pos_sessions');
     }
 };
