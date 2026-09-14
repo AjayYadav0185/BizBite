@@ -62,6 +62,15 @@
                class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 transition hover:border-emerald-500 hover:text-emerald-400">
                 Shift
             </a>
+            @if (auth()->user()?->isAdmin())
+                {{-- Owners can hop back to the Admin console from the POS —
+                     without this an admin who switches to POS mode is stuck
+                     with no UI way back (only Order Queue had the link). --}}
+                <a href="{{ route('admin.dashboard') }}"
+                   class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 transition hover:border-emerald-500 hover:text-emerald-400">
+                    Admin
+                </a>
+            @endif
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
                 <button type="submit" class="text-xs font-semibold text-slate-400 hover:text-red-400">Logout</button>

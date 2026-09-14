@@ -1,7 +1,20 @@
 <div class="flex min-h-screen flex-col bg-slate-950 text-slate-100">
     <header class="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-4 py-3">
         <p class="text-sm font-bold">Shift / Cash Drawer</p>
-        <a href="{{ route('pos.billing') }}" class="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-black uppercase text-slate-950">← Billing</a>
+        <div class="flex items-center gap-3">
+            <a href="{{ route('pos.billing') }}" class="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-black uppercase text-slate-950">← Billing</a>
+            @if (auth()->user()?->isAdmin())
+                <a href="{{ route('admin.dashboard') }}"
+                   class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 transition hover:border-emerald-500 hover:text-emerald-400">Admin</a>
+            @endif
+            {{-- The shift page previously had NO logout control at all —
+                 staff on the cash-drawer screen had to hop back to Billing
+                 just to sign out. --}}
+            <form method="POST" action="{{ route('logout') }}">
+                @csrf
+                <button type="submit" class="text-xs font-semibold text-slate-400 hover:text-red-400">Logout</button>
+            </form>
+        </div>
     </header>
 
     <main class="mx-auto w-full max-w-3xl space-y-4 px-4 py-6">

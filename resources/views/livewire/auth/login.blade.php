@@ -10,6 +10,15 @@
             <p class="text-sm text-slate-500">Sign in to your billing console</p>
         </div>
 
+        {{-- Shown when a user is bounced here after their session expired
+             (e.g. they clicked Logout after leaving a POS screen open past
+             SESSION_LIFETIME and hit the 419 handler, or were logged out). --}}
+        @if (session('status'))
+            <p class="mb-4 rounded-xl border border-amber-200 bg-warn-50 px-4 py-3 text-center text-sm font-semibold text-warn-600" role="status">
+                {{ session('status') }}
+            </p>
+        @endif
+
         <form wire:submit="authenticate" class="space-y-4 rounded-2xl border border-card-border bg-white p-6 shadow-card-hover">
             <div>
                 <label for="email" class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Email</label>
