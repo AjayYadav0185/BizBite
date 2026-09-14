@@ -31,9 +31,12 @@ class SetCurrentStore
         // ("web") and then falls back to the Authorization bearer token.
         $user = Auth::guard('sanctum')->user();
 
-        if ($user && $user->store_id) {
-            Context::add('current_store_id', $user->store_id);
-        }
+        // ALWAYS set (not just add) the tenant context, so a value left over
+        // from a previous request can never leak into this one. Without the
+        // reset, an unauthenticated request — or a queued job / test run that
+        // skips the middleware — would silently inherit the LAST request's
+        // store_id and see that store's data through StoreScope.
+        Context::add('current_store_id', $user?->store_id);
 
         return $next($request);
     }

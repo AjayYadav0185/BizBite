@@ -126,7 +126,7 @@ class NextPhaseTest extends TestCase
         try {
             app(RefundService::class)->issue($user, $order->fresh(), '9999.00', 'too much', 'cash');
             $this->fail('Expected over-refund to throw.');
-        } catch (\\App\\Services\\Exceptions\\OrderPlacementException $e) {
+        } catch (OrderPlacementException $e) {
             $this->assertStringContainsString('exceeds', $e->getMessage());
         }
     }

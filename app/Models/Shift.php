@@ -55,7 +55,12 @@ class Shift extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class);
+        // The shift owner is authoritative via `user_id`; the shift row itself
+        // is already tenant-scoped. Re-filtering the owner through StoreScope
+        // would return null whenever the current tenant context differs
+        // (e.g. an admin closing a shift, or a stale request context), which
+        // crashed ShiftService::close() with "read property on null".
+        return $this->belongsTo(User::class)->withoutGlobalScope(StoreScope::class);
     }
 
     public function isOpen(): bool
