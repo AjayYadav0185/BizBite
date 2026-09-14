@@ -97,6 +97,22 @@ class DioClient {
     );
   }
 
+  Future<Response<T>> patch<T>(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? query,
+    Options? options,
+    CancelToken? cancelToken,
+  }) {
+    return _dio.patch<T>(
+      path,
+      data: data,
+      queryParameters: query,
+      options: options,
+      cancelToken: cancelToken,
+    );
+  }
+
   Future<Response<T>> put<T>(
     String path, {
     Object? data,

@@ -10,10 +10,18 @@ import '../features/orders/cart_controller.dart';
 import '../features/orders/order_checkout.dart';
 import '../features/orders/order_flow_controller.dart';
 import '../features/orders/data/models/order_receipt_model.dart';
+import '../features/ops/console_controller.dart';
+import '../features/ops/order_queue_controller.dart';
+import '../features/ops/reports_controller.dart';
+import '../features/ops/shifts_controller.dart';
 import '../features/wallet/wallet_controller.dart';
 import 'screens/admin_screen.dart';
+import 'screens/console_screen.dart';
+import 'screens/orders_screen.dart';
 import 'screens/pos_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/reports_screen.dart';
+import 'screens/shifts_screen.dart';
 import 'screens/wallet_screen.dart';
 import 'services/print_settings.dart';
 import 'services/receipt_printer.dart';
@@ -39,6 +47,10 @@ class HomeScreen extends StatefulWidget {
     required this.sync,
     required this.orchestrator,
     required this.wallet,
+    required this.queue,
+    required this.shifts,
+    required this.reports,
+    required this.console,
   });
 
   final SessionController session;
@@ -53,6 +65,13 @@ class HomeScreen extends StatefulWidget {
 
   /// Customer Wallet state (balance + Razorpay recharge handshake).
   final WalletController wallet;
+
+  /// Ops modules: today's queue, cash-drawer shifts, owner reports and the
+  /// admin console (tables / campaigns / staff).
+  final OrderQueueController queue;
+  final ShiftsController shifts;
+  final ReportsController reports;
+  final ConsoleController console;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -364,6 +383,36 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             _navTile(
               context,
+              icon: Icons.receipt_long_rounded,
+              title: 'Orders',
+              subtitle: 'Today’s queue, refunds & delivery',
+              selected: false,
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => OrderQueueScreen(controller: widget.queue),
+                  ),
+                );
+              },
+            ),
+            _navTile(
+              context,
+              icon: Icons.lock_open_rounded,
+              title: 'Shifts',
+              subtitle: 'Cash drawer open & close',
+              selected: false,
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ShiftsScreen(controller: widget.shifts),
+                  ),
+                );
+              },
+            ),
+            _navTile(
+              context,
               icon: Icons.person_outline_rounded,
               title: 'My Profile',
               subtitle: 'Account, password & receipt print',
@@ -380,6 +429,38 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               },
             ),
+            if (isAdmin) ...[
+              _navTile(
+                context,
+                icon: Icons.insights_rounded,
+                title: 'Reports',
+                subtitle: 'Hourly sales, best-sellers & range KPIs',
+                selected: false,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ReportsScreen(controller: widget.reports),
+                    ),
+                  );
+                },
+              ),
+              _navTile(
+                context,
+                icon: Icons.dashboard_customize_rounded,
+                title: 'Tables & Staff',
+                subtitle: 'Floor plan, campaigns & cashiers',
+                selected: false,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ConsoleScreen(controller: widget.console),
+                    ),
+                  );
+                },
+              ),
+            ],
             const Spacer(),
             const Divider(height: 1, color: BizBiteTheme.hairline),
             // Signed-in staff summary.

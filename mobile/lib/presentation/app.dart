@@ -10,6 +10,11 @@ import '../features/auth/data/repositories/auth_repository.dart';
 import '../features/auth/session_controller.dart';
 import '../features/menu/data/repositories/menu_repository.dart';
 import '../features/menu/menu_controller.dart';
+import '../features/ops/console_controller.dart';
+import '../features/ops/data/repositories/ops_repository.dart';
+import '../features/ops/order_queue_controller.dart';
+import '../features/ops/reports_controller.dart';
+import '../features/ops/shifts_controller.dart';
 import '../features/orders/cart_controller.dart';
 import '../features/orders/data/repositories/order_repository.dart';
 import '../features/orders/order_checkout.dart';
@@ -61,6 +66,10 @@ class _BizBiteAppState extends State<BizBiteApp> {
   late SyncController _sync;
   late SyncOrchestrator _orchestrator;
   late WalletController _wallet;
+  late OrderQueueController _queue;
+  late ShiftsController _shifts;
+  late ReportsController _reports;
+  late ConsoleController _console;
   final ThemeProvider _theme = ThemeProvider();
 
   @override
@@ -89,6 +98,13 @@ class _BizBiteAppState extends State<BizBiteApp> {
     _wallet = WalletController(
       repository: WalletRepository(client: _client),
     );
+
+    // -- Ops modules (queue / shifts / reports / console) ---------------
+    final opsRepository = OpsRepository(client: _client);
+    _queue = OrderQueueController(repository: opsRepository);
+    _shifts = ShiftsController(repository: opsRepository);
+    _reports = ReportsController(repository: opsRepository);
+    _console = ConsoleController(repository: opsRepository);
 
     // -- Offline-first sync engine -------------------------------------
     _sync = SyncController(client: _client);
@@ -152,6 +168,10 @@ class _BizBiteAppState extends State<BizBiteApp> {
           sync: _sync,
           orchestrator: _orchestrator,
           wallet: _wallet,
+          queue: _queue,
+          shifts: _shifts,
+          reports: _reports,
+          console: _console,
         );
       },
     );

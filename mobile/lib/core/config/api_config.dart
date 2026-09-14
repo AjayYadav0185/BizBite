@@ -37,6 +37,34 @@ class ApiConfig {
   static const String menu = '/menu';
   static const String orders = '/orders';
 
+  // Ops: kitchen/counter queue + status transitions + refunds + delivery
+  // (see routes/api.php — role:admin,cashier).
+  static String orderStatus(int orderId) => '/orders/$orderId/status';
+  static String orderRefund(int orderId) => '/orders/$orderId/refund';
+  static String orderDelivery(int orderId) => '/orders/$orderId/delivery';
+
+  // Shifts: cash-drawer sessions (open / close / list).
+  static const String shifts = '/shifts';
+  static const String shiftOpen = '/shifts/open';
+  static String shiftClose(int shiftId) => '/shifts/$shiftId/close';
+
+  // Owner reports (hourly / best-sellers / range).
+  static const String reportsHourly = '/reports/hourly';
+  static const String reportsBestSellers = '/reports/best-sellers';
+  static const String reportsRange = '/reports/range';
+
+  // Owner-managed dining tables (read for all staff, writes admin-only).
+  static const String tables = '/tables';
+  static String table(int id) => '/tables/$id';
+
+  // Owner-managed campaigns (read for all staff, writes admin-only).
+  static const String campaigns = '/campaigns';
+  static String campaign(int id) => '/campaigns/$id';
+
+  // Staff management (admin-only).
+  static const String staff = '/staff';
+  static String staffMember(int id) => '/staff/$id';
+
   /// Self-service profile management (own details only).
   static const String profile = '/profile';
   static const String profilePassword = '/profile/password';
