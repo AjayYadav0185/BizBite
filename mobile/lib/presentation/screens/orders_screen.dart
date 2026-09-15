@@ -1,19 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/sync/offline_sources.dart';
+import '../../core/sync/sync_controller.dart';
 import '../../features/ops/data/models/order_queue_models.dart';
 import '../../features/ops/order_queue_controller.dart';
 import '../../features/orders/data/models/order_models.dart';
 import '../theme/bizbite_theme.dart';
 import '../widgets/amount.dart';
+import '../widgets/offline_screen_header.dart';
 
 /// Today's kitchen/counter queue — the mobile twin of the web OrderQueue
 /// board. Filter chips (open-only + order-type split), status advance
 /// buttons per bill, refund and delivery moves via dialogs/sheets.
+///
+/// Offline: the cached queue is painted, bills taken on this device appear as
+/// read-only "(queued)" cards, and status/delivery moves are queued for sync.
+/// Refunds need a connection (money is never queued).
 class OrderQueueScreen extends StatefulWidget {
-  const OrderQueueScreen({super.key, required this.controller});
+  const OrderQueueScreen({
+    super.key,
+    required this.controller,
+    required this.sync,
+  });
 
   final OrderQueueController controller;
+
+  /// Live connectivity + queued-work state for the offline strip.
+  final SyncController sync;
 
   @override
   State<OrderQueueScreen> createState() => _OrderQueueScreenState();
@@ -42,6 +56,14 @@ class _OrderQueueScreenState extends State<OrderQueueScreen> {
     ));
   }
 
+  /// Announce a queued offline write. Called after a successful action whose
+  /// return value was null: online it stays silent, offline it confirms the
+  /// change was saved on the device and will sync automatically.
+  void _snackQueued() {
+    final notice = widget.controller.queuedNotice;
+    if (notice != null) _snack(notice, ok: true);
+  }
+
   // ------------------------------------------------------------------
   // Actions
   // ------------------------------------------------------------------
@@ -55,7 +77,11 @@ class _OrderQueueScreenState extends State<OrderQueueScreen> {
     };
     if (next == null) return;
     final error = await widget.controller.advanceStatus(order, next);
-    if (error != null) _snack(error);
+    if (error != null) {
+      _snack(error);
+    } else {
+      _snackQueued();
+    }
   }
 
   Future<void> _cancel(OrderQueueOrder order) async {
@@ -81,7 +107,11 @@ class _OrderQueueScreenState extends State<OrderQueueScreen> {
     if (confirmed != true) return;
     final error =
         await widget.controller.advanceStatus(order, OrderStatus.cancelled);
-    if (error != null) _snack(error);
+    if (error != null) {
+      _snack(error);
+    } else {
+      _snackQueued();
+    }
   }
 
   Future<void> _refund(OrderQueueOrder order) async {
@@ -213,7 +243,11 @@ class _OrderQueueScreenState extends State<OrderQueueScreen> {
     if (selected == null || selected == order.deliveryStatus) return;
     final error =
         await widget.controller.updateDelivery(order, status: selected);
-    if (error != null) _snack(error);
+    if (error != null) {
+      _snack(error);
+    } else {
+      _snackQueued();
+    }
   }
 
 
@@ -229,6 +263,16 @@ class _OrderQueueScreenState extends State<OrderQueueScreen> {
         title: const Text('Today’s Orders'),
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
+        bottom: PreferredSize(
+          preferredSize: Size.fromHeight(
+            OfflineScreenHeader.heightFor(widget.sync, OfflineSources.queue),
+          ),
+          child: OfflineScreenHeader(
+            sync: widget.sync,
+            source: OfflineSources.queue,
+            onRetry: () async => widget.controller.load(),
+          ),
+        ),
       ),
       body: ListenableBuilder(
         listenable: controller,

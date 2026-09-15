@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../core/network/api_exception.dart';
+import '../../core/sync/offline_queued_exception.dart';
 import 'data/models/shift_models.dart';
 import 'data/repositories/ops_repository.dart';
 
@@ -8,6 +9,8 @@ import 'data/repositories/ops_repository.dart';
 ///
 /// `GET /api/shifts` returns the latest 30 sessions; [currentShift] exposes
 /// the open one (if any) so the drawer screen can show a live banner.
+/// Offline the list comes from the SQLite cache and open/close are queued in
+/// the mutation outbox (the drawer is added/closed locally right away).
 class ShiftsController extends ChangeNotifier {
   ShiftsController({required this._repository});
 
@@ -17,6 +20,10 @@ class ShiftsController extends ChangeNotifier {
   bool loading = false;
   bool mutating = false;
   String error = '';
+
+  /// Set when the last open/close was queued for sync instead of reaching the
+  /// server, so the screen can confirm it to the cashier.
+  String? queuedNotice;
 
   /// Variance of the most recent close (server: closing − expected).
   double? lastVariance;
@@ -76,9 +83,15 @@ class ShiftsController extends ChangeNotifier {
   Future<String?> _mutate(Future<void> Function() action) async {
     if (mutating) return null;
     mutating = true;
+    queuedNotice = null;
     notifyListeners();
     try {
       await action();
+      return null;
+    } on OfflineQueuedException catch (queued) {
+      // Saved on the device and applied to the cached drawer list; the
+      // orchestrator replays it as soon as the server is reachable again.
+      queuedNotice = queued.message;
       return null;
     } on ApiException catch (e) {
       return e.message;

@@ -81,9 +81,14 @@ class ApiConfig {
   static String menuItem(int id) => '/menu/items/$id';
 
   /// Network timeouts tuned for outlet Wi-Fi (can be flaky during rush hour).
-  static const Duration connectTimeout = Duration(seconds: 15);
-  static const Duration sendTimeout = Duration(seconds: 20);
-  static const Duration receiveTimeout = Duration(seconds: 30);
+  ///
+  /// Offline rule of thumb: these MUST stay shorter than the time a cashier
+  /// can afford to wait for a bill. When they fire, the offline layer takes
+  /// over — the cached grid paints and writes go to the durable outbox.
+  /// Timeouts are therefore a *failover speed* knob, not a patience knob.
+  static const Duration connectTimeout = Duration(seconds: 8);
+  static const Duration sendTimeout = Duration(seconds: 15);
+  static const Duration receiveTimeout = Duration(seconds: 20);
 
   /// Verbose wire-level logging in debug builds only.
   static bool get isVerboseLogging => kDebugMode;

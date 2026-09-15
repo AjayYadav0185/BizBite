@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/sync/offline_sources.dart';
+import '../../core/sync/sync_controller.dart';
 import '../../features/auth/data/models/user_model.dart';
 import '../../features/ops/console_controller.dart';
 import '../../features/ops/data/models/console_models.dart';
 import '../theme/bizbite_theme.dart';
 import '../widgets/amount.dart';
+import '../widgets/offline_screen_header.dart';
 
 /// Owner console — the mobile slice of the Laravel admin portal:
 ///
@@ -15,10 +18,21 @@ import '../widgets/amount.dart';
 ///
 /// The console tile is only shown to admins; the backend additionally
 /// enforces `role:admin` on every write and on GET /api/staff.
+///
+/// Offline: the cached floor plan / campaign list is painted and every write
+/// is queued in the mutation outbox with the grid patched immediately, so the
+/// console stays fully usable without a link.
 class ConsoleScreen extends StatefulWidget {
-  const ConsoleScreen({super.key, required this.controller});
+  const ConsoleScreen({
+    super.key,
+    required this.controller,
+    required this.sync,
+  });
 
   final ConsoleController controller;
+
+  /// Live connectivity + queued-work state for the offline strip.
+  final SyncController sync;
 
   @override
   State<ConsoleScreen> createState() => _ConsoleScreenState();
@@ -38,6 +52,12 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
       backgroundColor: ok ? BizBiteTheme.success : AppColors.error,
     ));
   }
+
+  /// Success message for a queued/offline write: shows the controller's
+  /// offline confirmation when the change was parked for sync, otherwise the
+  /// plain online confirmation.
+  void _snackSaved(ConsoleController controller, String onlineMessage) =>
+      _snack(controller.queuedNotice ?? onlineMessage, ok: true);
 
   @override
   Widget build(BuildContext context) {
@@ -82,11 +102,26 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
                 ),
               );
             }
-            return TabBarView(
+            return Column(
               children: [
-                _tablesTab(controller),
-                _campaignsTab(controller),
-                _staffTab(controller),
+                OfflineScreenHeader(
+                  sync: widget.sync,
+                  source: OfflineSources.tables,
+                  sources: const {
+                    OfflineSources.campaigns,
+                    OfflineSources.staff,
+                  },
+                  onRetry: () async => controller.load(),
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _tablesTab(controller),
+                      _campaignsTab(controller),
+                      _staffTab(controller),
+                    ],
+                  ),
+                ),
               ],
             );
           },
@@ -155,7 +190,9 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
       seats: int.tryParse(seatsCtrl.text.trim()) ?? 4,
     );
     if (!mounted) return;
-    error == null ? _snack('Table created.', ok: true) : _snack(error);
+    error == null
+        ? _snackSaved(controller, 'Table created.')
+        : _snack(error);
   }
 
 
@@ -211,7 +248,9 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
     if (action == 'delete') {
       final error = await controller.deleteTable(table);
       if (!mounted) return;
-      error == null ? _snack('Table deleted.', ok: true) : _snack(error);
+      error == null
+          ? _snackSaved(controller, 'Table deleted.')
+          : _snack(error);
       return;
     }
     final status =
@@ -219,7 +258,7 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
     final error = await controller.setTableStatus(table, status);
     if (!mounted) return;
     if (error == null) {
-      _snack('Table ${table.tableNumber} → ${status.label}.', ok: true);
+      _snackSaved(controller, 'Table ${table.tableNumber} → ${status.label}.');
     } else {
       _snack(error);
     }
@@ -446,7 +485,9 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
       minOrderAmount: double.tryParse(minCtrl.text.trim()) ?? 0,
     );
     if (!mounted) return;
-    error == null ? _snack('Campaign created.', ok: true) : _snack(error);
+    error == null
+        ? _snackSaved(controller, 'Campaign created.')
+        : _snack(error);
   }
 
 
@@ -634,7 +675,7 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
     );
     if (!mounted) return;
     error == null
-        ? _snack('Cashier added — they can sign in now.', ok: true)
+        ? _snackSaved(controller, 'Cashier added — they can sign in now.')
         : _snack(error);
   }
 

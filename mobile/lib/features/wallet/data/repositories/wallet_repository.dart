@@ -3,27 +3,43 @@ import 'package:dio/dio.dart';
 import '../../../../core/config/api_config.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/network/dio_client.dart';
+import '../../../../core/sync/cache_keys.dart';
+import '../../../../core/sync/offline_gateway.dart';
+import '../../../../core/sync/offline_sources.dart';
 import '../../../../core/utils/parse_utils.dart';
 import '../models/wallet_models.dart';
 
 /// Typed gateway for the Customer Wallet endpoints (routes/api.php):
 ///
-///   GET  /wallet/balance          → current points + recent ledger history
-///   POST /wallet/recharge/initiate → Razorpay order id for the checkout sheet
-///   POST /wallet/recharge/verify   → server-side signature check + credit
+///   GET  /wallet/balance          → points + recent ledger history (cached)
+///   POST /wallet/recharge/initiate → Razorpay order id (ONLINE ONLY)
+///   POST /wallet/recharge/verify   → signature check + credit (ONLINE ONLY)
+///
+/// The balance is cached so the dashboard still renders the last known points
+/// and history in a dead zone. Recharging is money + an external payment
+/// gateway, so it can never be queued: the cashier is told to reconnect.
 class WalletRepository {
-  WalletRepository({required this._client});
+  WalletRepository({required this._client, OfflineGateway? gateway})
+      : _gateway = gateway ?? OfflineGateway();
 
   final DioClient _client;
+  final OfflineGateway _gateway;
 
-  /// GET /api/wallet/balance — balance + newest-first transaction history.
+  /// GET /api/wallet/balance — network-first with a SQLite fallback.
   Future<WalletSnapshot> balance() async {
-    try {
-      final response = await _client.get<dynamic>(ApiConfig.walletBalance);
-      return WalletSnapshot.fromJson(toMap(response.data));
-    } on DioException catch (error) {
-      throw apiExceptionFrom(error);
-    }
+    final read = await _gateway.readRaw(
+      key: CacheKeys.wallet,
+      source: OfflineSources.wallet,
+      fetch: () async {
+        try {
+          final response = await _client.get<dynamic>(ApiConfig.walletBalance);
+          return response.data;
+        } on DioException catch (error) {
+          throw apiExceptionFrom(error);
+        }
+      },
+    );
+    return WalletSnapshot.fromJson(toMap(read.data));
   }
 
   /// POST /api/wallet/recharge/initiate — create a Razorpay order for
@@ -36,7 +52,7 @@ class WalletRepository {
       );
       return RechargeOrder.fromJson(toMap(response.data));
     } on DioException catch (error) {
-      throw apiExceptionFrom(error);
+      throw _rechargeFailure(apiExceptionFrom(error), error);
     }
   }
 
@@ -59,7 +75,18 @@ class WalletRepository {
       );
       return RechargeResult.fromJson(toMap(response.data));
     } on DioException catch (error) {
-      throw apiExceptionFrom(error);
+      throw _rechargeFailure(apiExceptionFrom(error), error);
     }
+  }
+
+  /// Recharges are never queued: an unverified payment can never become
+  /// points, so an offline attempt gets an explicit, cashier-ready message.
+  ApiException _rechargeFailure(ApiException exception, Object cause) {
+    if (!exception.isNetworkError) return exception;
+    return ApiException(
+      message: 'Recharge needs a connection — reconnect and try again.',
+      type: ApiExceptionType.network,
+      original: cause,
+    );
   }
 }

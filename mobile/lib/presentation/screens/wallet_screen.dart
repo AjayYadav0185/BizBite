@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/sync/offline_sources.dart';
+import '../../core/sync/sync_controller.dart';
 import '../../features/wallet/data/models/wallet_models.dart';
 import '../../features/wallet/razorpay_checkout.dart';
 import '../../features/wallet/wallet_controller.dart';
 import '../theme/bizbite_theme.dart';
 import '../widgets/amount.dart';
+import '../widgets/offline_screen_header.dart';
 
 /// Wallet Dashboard — current points, transaction ledger (credits in green,
 /// debits in red) and the Razorpay recharge entry point.
@@ -13,9 +16,12 @@ import '../widgets/amount.dart';
 /// The recharge handshake is owned by [WalletController.recharge]:
 /// initiate → Razorpay overlay ([RazorpayCheckout.open]) → verify → refresh.
 class WalletScreen extends StatefulWidget {
-  const WalletScreen({super.key, required this.wallet});
+  const WalletScreen({super.key, required this.wallet, required this.sync});
 
   final WalletController wallet;
+
+  /// Live connectivity + queued-work state for the offline strip.
+  final SyncController sync;
 
   @override
   State<WalletScreen> createState() => _WalletScreenState();
@@ -77,6 +83,16 @@ class _WalletScreenState extends State<WalletScreen> {
         title: const Text('Wallet'),
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
+        bottom: PreferredSize(
+          preferredSize: Size.fromHeight(
+            OfflineScreenHeader.heightFor(widget.sync, OfflineSources.wallet),
+          ),
+          child: OfflineScreenHeader(
+            sync: widget.sync,
+            source: OfflineSources.wallet,
+            onRetry: () async => widget.wallet.load(),
+          ),
+        ),
       ),
       body: ListenableBuilder(
         listenable: widget.wallet,

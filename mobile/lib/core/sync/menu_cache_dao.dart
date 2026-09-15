@@ -97,6 +97,58 @@ class MenuCacheDao {
     return count > 0;
   }
 
+  // -- Optimistic local edits (admin writes queued offline) -------------
+  //
+  // A queued menu write must show up in the POS grid immediately, so the
+  // repository patches this cache before the mutation is replayed. Local rows
+  // get a NEGATIVE id placeholder; the next successful `GET /api/menu` pull
+  // replaces the cache wholesale (server-wins LWW), so placeholders are
+  // transient by construction and can never leak into the server.
+
+  /// Monotonic negative id for a row created while offline.
+  int localId() => -DateTime.now().microsecondsSinceEpoch;
+
+  Future<void> upsertItem(FoodItemModel item) async {
+    final database = await _db.db;
+    await database.insert(
+      'cached_items',
+      {
+        'id': item.id,
+        'category_id': item.categoryId,
+        'name': item.name,
+        'price': item.price,
+        'food_type': item.foodType,
+        'gst_rate': item.gstRate,
+        'sort_order': item.sortOrder,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> removeItem(int id) async {
+    final database = await _db.db;
+    await database.delete('cached_items', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> upsertCategory(CategoryModel category) async {
+    final database = await _db.db;
+    await database.insert(
+      'cached_categories',
+      {'id': category.id, 'name': category.name, 'sort_order': 0},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> renameCategory(int id, String name) async {
+    final database = await _db.db;
+    await database.update(
+      'cached_categories',
+      {'name': name},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   Future<DateTime?> get lastSyncAt async {
     final raw = await _db.readMeta(keyLastSyncMs);
     final ms = int.tryParse(raw ?? '');

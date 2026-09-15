@@ -1,16 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/sync/offline_sources.dart';
+import '../../core/sync/sync_controller.dart';
 import '../../features/ops/reports_controller.dart';
 import '../theme/bizbite_theme.dart';
 import '../widgets/amount.dart';
+import '../widgets/offline_screen_header.dart';
 
 /// Owner "night numbers": date-range KPIs, the hourly sales curve and the
 /// best-sellers board. Defaults to today; chips + pickers cover ranges.
+///
+/// Offline: the last cached numbers for the selected date/range are shown with
+/// a "cached" strip — reports are read-only, so nothing is ever queued.
 class ReportsScreen extends StatefulWidget {
-  const ReportsScreen({super.key, required this.controller});
+  const ReportsScreen({
+    super.key,
+    required this.controller,
+    required this.sync,
+  });
 
   final ReportsController controller;
+
+  /// Live connectivity + queued-work state for the offline strip.
+  final SyncController sync;
 
   @override
   State<ReportsScreen> createState() => _ReportsScreenState();
@@ -89,6 +102,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
             final controller = widget.controller;
             return Column(
               children: [
+                OfflineScreenHeader(
+                  sync: widget.sync,
+                  source: OfflineSources.reports,
+                  onRetry: () async => widget.controller.load(
+                    from: _api.format(_from),
+                    to: _api.format(_to),
+                  ),
+                ),
                 _rangeBar(controller),
                 Expanded(
                   child: controller.loading && controller.rangeReport == null

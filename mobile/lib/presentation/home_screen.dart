@@ -376,7 +376,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.of(context).pop();
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => WalletScreen(wallet: widget.wallet),
+                    builder: (_) => WalletScreen(wallet: widget.wallet, sync: widget.sync),
                   ),
                 );
               },
@@ -391,7 +391,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.of(context).pop();
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => OrderQueueScreen(controller: widget.queue),
+                    builder: (_) => OrderQueueScreen(
+                          controller: widget.queue,
+                          sync: widget.sync,
+                        ),
                   ),
                 );
               },
@@ -406,7 +409,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.of(context).pop();
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => ShiftsScreen(controller: widget.shifts),
+                    builder: (_) => ShiftsScreen(
+                          controller: widget.shifts,
+                          sync: widget.sync,
+                        ),
                   ),
                 );
               },
@@ -440,7 +446,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   Navigator.of(context).pop();
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => ReportsScreen(controller: widget.reports),
+                      builder: (_) => ReportsScreen(
+                          controller: widget.reports,
+                          sync: widget.sync,
+                        ),
                     ),
                   );
                 },
@@ -455,7 +464,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   Navigator.of(context).pop();
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => ConsoleScreen(controller: widget.console),
+                      builder: (_) => ConsoleScreen(
+                          controller: widget.console,
+                          sync: widget.sync,
+                        ),
                     ),
                   );
                 },

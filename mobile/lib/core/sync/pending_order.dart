@@ -14,6 +14,7 @@ class PendingOrder {
     required this.nextRetryAt,
     required this.lastError,
     required this.createdAt,
+    this.totalAmount = 0,
   });
 
   final int id;
@@ -25,6 +26,10 @@ class PendingOrder {
   final int nextRetryAt;
   final String lastError;
   final int createdAt;
+
+  /// Local bill total (v2) so the Orders queue + banner can show a queued
+  /// bill without decoding its whole payload. The server re-prices on sync.
+  final double totalAmount;
 
   bool get isDue =>
       status == 'pending' &&
@@ -40,5 +45,6 @@ class PendingOrder {
         nextRetryAt: (map['next_retry_at'] as num?)?.toInt() ?? 0,
         lastError: (map['last_error'] ?? '').toString(),
         createdAt: (map['created_at'] as num?)?.toInt() ?? 0,
+        totalAmount: (map['total_amount'] as num?)?.toDouble() ?? 0,
       );
 }

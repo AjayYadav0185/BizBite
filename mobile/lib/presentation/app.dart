@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' hide MenuController;
 
 import '../core/network/dio_client.dart';
 import '../core/storage/secure_token_storage.dart';
 import '../core/sync/menu_cache_dao.dart';
+import '../core/sync/offline_gateway.dart';
 import '../core/sync/outbox_dao.dart';
 import '../core/sync/sync_controller.dart';
 import '../core/sync/sync_orchestrator.dart';
@@ -65,6 +68,7 @@ class _BizBiteAppState extends State<BizBiteApp> {
   late PrintSettings _printSettings;
   late SyncController _sync;
   late SyncOrchestrator _orchestrator;
+  late OfflineGateway _offline;
   late WalletController _wallet;
   late OrderQueueController _queue;
   late ShiftsController _shifts;
@@ -87,8 +91,23 @@ class _BizBiteAppState extends State<BizBiteApp> {
       authRepository: AuthRepository(client: _client),
       client: _client,
     );
-    final menuRepository = MenuRepository(client: _client);
-    final orderRepository = OrderRepository(client: _client);
+
+    // -- Offline-first sync engine -------------------------------------
+    // Built FIRST: SyncController is the app-wide `OfflineStatusSink`, so every
+    // repository reports through it which screens are serving cached data.
+    // Every queued row is stamped with the signed-in store id.
+    int activeStoreId() => _session.user?.storeId ?? 0;
+    _sync = SyncController(client: _client, storeIdProvider: activeStoreId);
+    _offline = OfflineGateway(
+      statusSink: _sync,
+      storeIdProvider: activeStoreId,
+    );
+
+    final menuRepository = MenuRepository(client: _client, gateway: _offline);
+    final orderRepository = OrderRepository(
+      client: _client,
+      storeIdProvider: activeStoreId,
+    );
     _menu = MenuController(repository: menuRepository);
     _cart = CartController();
     _orderFlow = OrderFlowController();
@@ -96,38 +115,68 @@ class _BizBiteAppState extends State<BizBiteApp> {
     _printer = ReceiptPrinter();
     _printSettings = PrintSettings();
     _wallet = WalletController(
-      repository: WalletRepository(client: _client),
+      repository: WalletRepository(client: _client, gateway: _offline),
     );
 
     // -- Ops modules (queue / shifts / reports / console) ---------------
-    final opsRepository = OpsRepository(client: _client);
-    _queue = OrderQueueController(repository: opsRepository);
+    final opsRepository = OpsRepository(client: _client, gateway: _offline);
+    _queue = OrderQueueController(repository: opsRepository)
+      ..storeIdProvider = activeStoreId;
     _shifts = ShiftsController(repository: opsRepository);
     _reports = ReportsController(repository: opsRepository);
     _console = ConsoleController(repository: opsRepository);
 
-    // -- Offline-first sync engine -------------------------------------
-    _sync = SyncController(client: _client);
     _orchestrator = SyncOrchestrator(
       client: _client,
       outbox: OutboxDao(),
       menuCache: MenuCacheDao(),
       sync: _sync,
+      mutations: _offline.mutations,
+      cache: _offline.cache,
+      storeIdProvider: activeStoreId,
     );
     SyncOrchestrator.register(_orchestrator);
     _sync.onLinkChanged = (hasLink) {
       if (hasLink) _orchestrator.kick();
     };
     _sync.start();
-    // Opportunistic kick on boot (flushes bills queued while app was dead).
+    // Cache hygiene + pending recount on every sign-in / sign-out transition.
+    _session.addListener(_onSessionChanged);
+    // Opportunistic kick on boot (flushes work queued while the app was dead):
+    // recount first so the banner is honest before the first byte is sent.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _sync.refreshQueued();
       _orchestrator.kick();
-      OutboxDao().pendingCount().then(_sync.setPendingCount);
     });
+  }
+
+  bool _wasSignedIn = false;
+
+  /// Session transitions that matter to the offline layer:
+  ///
+  ///  sign-in  → recount the outbox (this store may have queued work from a
+  ///             previous shift) and kick a sync.
+  ///  sign-out → drop the READ caches (they belong to the store that just
+  ///             signed out) but KEEP both outboxes: they are store-stamped,
+  ///             so queued sales resurface — and replay — only for their own
+  ///             store. Nothing is ever silently discarded.
+  void _onSessionChanged() {
+    final signedIn = _session.phase == SessionPhase.online;
+    if (signedIn == _wasSignedIn) return;
+    _wasSignedIn = signedIn;
+
+    if (signedIn) {
+      unawaited(_sync.refreshQueued());
+      unawaited(_orchestrator.kick());
+    } else {
+      unawaited(_offline.cache.clearAll());
+      unawaited(_sync.refreshQueued());
+    }
   }
 
   @override
   void dispose() {
+    _session.removeListener(_onSessionChanged);
     _sync.dispose();
     super.dispose();
   }

@@ -1,18 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/sync/offline_sources.dart';
+import '../../core/sync/sync_controller.dart';
 import '../../features/ops/data/models/shift_models.dart';
 import '../../features/ops/shifts_controller.dart';
 import '../theme/bizbite_theme.dart';
 import '../widgets/amount.dart';
+import '../widgets/offline_screen_header.dart';
 
 /// Cash-drawer screen: live banner for the open shift (with Open/Close
 /// actions and the counted-vs-expected variance on close) plus the
 /// 30-session history from `GET /api/shifts`.
 class ShiftsScreen extends StatefulWidget {
-  const ShiftsScreen({super.key, required this.controller});
+  const ShiftsScreen({super.key, required this.controller, required this.sync});
 
   final ShiftsController controller;
+
+  /// Live connectivity + queued-work state for the offline strip.
+  final SyncController sync;
 
   @override
   State<ShiftsScreen> createState() => _ShiftsScreenState();
@@ -32,6 +38,12 @@ class _ShiftsScreenState extends State<ShiftsScreen> {
       backgroundColor: ok ? BizBiteTheme.success : AppColors.error,
     ));
   }
+
+  /// Success message for a queued/offline write: shows the controller's
+  /// offline confirmation when the drawer move was parked for sync, otherwise
+  /// the plain online confirmation.
+  void _snackSaved(String onlineMessage) =>
+      _snack(widget.controller.queuedNotice ?? onlineMessage, ok: true);
 
   Future<void> _openShift() async {
     final cashCtrl = TextEditingController(text: '0');
@@ -86,7 +98,7 @@ class _ShiftsScreenState extends State<ShiftsScreen> {
     if (error != null) {
       _snack(error);
     } else {
-      _snack('Shift opened.', ok: true);
+      _snackSaved('Shift opened.');
     }
   }
 
@@ -141,6 +153,12 @@ class _ShiftsScreenState extends State<ShiftsScreen> {
       return;
     }
     final variance = widget.controller.lastVariance ?? 0;
+    final queued = widget.controller.queuedNotice;
+    if (queued != null) {
+      // Offline close: the variance is unknown until the replay lands.
+      _snack(queued, ok: true);
+      return;
+    }
     _snack(
       variance == 0
           ? 'Shift closed — drawer balanced.'
@@ -158,6 +176,16 @@ class _ShiftsScreenState extends State<ShiftsScreen> {
         title: const Text('Shifts'),
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
+        bottom: PreferredSize(
+          preferredSize: Size.fromHeight(
+            OfflineScreenHeader.heightFor(widget.sync, OfflineSources.shifts),
+          ),
+          child: OfflineScreenHeader(
+            sync: widget.sync,
+            source: OfflineSources.shifts,
+            onRetry: () async => controller.load(),
+          ),
+        ),
       ),
       floatingActionButton: ListenableBuilder(
         listenable: controller,

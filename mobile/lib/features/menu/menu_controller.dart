@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../core/network/api_exception.dart';
+import '../../core/sync/offline_queued_exception.dart';
 import 'data/models/menu_response_model.dart';
 import 'data/repositories/menu_repository.dart';
 
@@ -24,6 +25,10 @@ class MenuController with ChangeNotifier implements Listenable {
   /// Last admin mutation failure (surfaced as a snackbar by AdminScreen).
   /// Null on success.
   String? lastMutationError;
+
+  /// Set when the last admin write was queued for sync instead of reaching the
+  /// server (the catalog was patched locally). Null otherwise.
+  String? queuedNotice;
 
   /// True while an admin add/edit/delete is in flight (buttons show spinners).
   bool mutating = false;
@@ -110,13 +115,23 @@ class MenuController with ChangeNotifier implements Listenable {
 
   /// Runs [action], then refreshes. Returns true on success; on failure
   /// sets [lastMutationError] so the UI can show a snackbar.
+  ///
+  /// A queued offline write is SUCCESS: the change is already visible in the
+  /// cached catalog and the sync engine will replay it. [queuedNotice] carries
+  /// the reassurance for the UI.
   Future<bool> _mutate(Future<void> Function() action) async {
     mutating = true;
     lastMutationError = null;
+    queuedNotice = null;
     notifyListeners();
     try {
       await action();
       await refresh();
+      return true;
+    } on OfflineQueuedException catch (queued) {
+      // `refresh()` fails offline, so repaint from the patched SQLite cache.
+      await _reloadFromCache();
+      queuedNotice = queued.message;
       return true;
     } catch (error) {
       // Server errors, DB errors, anything — surface as a snackbar instead
@@ -126,6 +141,20 @@ class MenuController with ChangeNotifier implements Listenable {
     } finally {
       mutating = false;
       notifyListeners();
+    }
+  }
+
+  /// Repaint the grid from the last-good SQLite snapshot (offline path).
+  Future<void> _reloadFromCache() async {
+    try {
+      final cached = await _repository.loadCached();
+      if (cached.items.isNotEmpty || cached.categories.isNotEmpty) {
+        menu = cached;
+        source = MenuSource.stale;
+        error = null;
+      }
+    } catch (_) {
+      // Cache unreadable: keep whatever is already painted.
     }
   }
 

@@ -42,7 +42,7 @@ class OrderCheckout {
       idempotencyKey: key,
     );
     try {
-      return await _repository.place(request);
+      return await _repository.place(request, localTotal: cart.payable);
     } on OfflineQueuedException catch (queued) {
       return _localReceipt(cart: cart, queued: queued, request: request);
     }

@@ -1,42 +1,39 @@
-// DAO for the `pending_orders` outbox table.
+// DAO for the `pending_mutations` outbox (non-bill writes queued offline).
 //
-// Concurrency contract: `claimDueBatch()` flips rows to `syncing` inside one
-// transaction so two kick() calls (connectivity event + manual retry) can
-// never double-post the same bill. Terminal rows are deleted on success;
-// poison rows (422 from Laravel) are parked as `failed` for manager review.
-import 'package:sqflite/sqflite.dart';
-
+// Same concurrency contract as `OutboxDao`: `claimDueBatch()` flips rows to
+// `syncing` inside ONE transaction, so a connectivity burst + a manual retry
+// can never replay the same PATCH twice. Terminal rows are deleted on
+// success; poison rows (422/404/409) are parked as `failed` for the manager.
 import 'app_database.dart';
-import 'pending_order.dart';
-
-class OutboxDao {
-  OutboxDao({AppDatabase? database}) : _db = database ?? AppDatabase.instance;
+import 'pending_mutation.dart';
+class MutationOutboxDao {
+  MutationOutboxDao({AppDatabase? database})
+      : _db = database ?? AppDatabase.instance;
 
   final AppDatabase _db;
 
   Future<void> enqueue({
-    required String idempotencyKey,
+    required String method,
+    required String path,
     required String payloadJson,
-    required String localBillNo,
-    double totalAmount = 0,
+    required String label,
     int storeId = 0,
   }) async {
     final database = await _db.db;
     await database.insert(
-      'pending_orders',
+      'pending_mutations',
       {
-        'idempotency_key': idempotencyKey,
+        'store_id': storeId,
+        'method': method.toUpperCase(),
+        'path': path,
         'payload_json': payloadJson,
-        'local_bill_no': localBillNo,
+        'label': label,
         'status': 'pending',
         'retry_count': 0,
         'next_retry_at': 0,
         'last_error': '',
         'created_at': DateTime.now().millisecondsSinceEpoch,
-        'total_amount': totalAmount,
-        'store_id': storeId,
       },
-      conflictAlgorithm: ConflictAlgorithm.ignore,
     );
   }
 
@@ -44,12 +41,15 @@ class OutboxDao {
   static const String _ownedBy = '(store_id = ? OR store_id = 0)';
 
   /// Atomically claim up to [limit] due rows for this sync attempt.
-  Future<List<PendingOrder>> claimDueBatch({int limit = 20, int storeId = 0}) async {
+  Future<List<PendingMutation>> claimDueBatch({
+    int limit = 20,
+    int storeId = 0,
+  }) async {
     final database = await _db.db;
     final now = DateTime.now().millisecondsSinceEpoch;
     return database.transaction((txn) async {
       final rows = await txn.query(
-        'pending_orders',
+        'pending_mutations',
         where: 'status = ? AND next_retry_at <= ? AND $_ownedBy',
         whereArgs: ['pending', now, storeId],
         orderBy: 'id ASC',
@@ -57,32 +57,32 @@ class OutboxDao {
       );
       for (final row in rows) {
         await txn.update(
-          'pending_orders',
+          'pending_mutations',
           {'status': 'syncing'},
           where: 'id = ? AND status = ?',
           whereArgs: [row['id'], 'pending'],
         );
       }
       final claimed = await txn.query(
-        'pending_orders',
+        'pending_mutations',
         where: 'status = ? AND $_ownedBy',
         whereArgs: ['syncing', storeId],
         orderBy: 'id ASC',
         limit: limit,
       );
-      return [for (final map in claimed) PendingOrder.fromMap(map)];
+      return [for (final map in claimed) PendingMutation.fromMap(map)];
     });
   }
 
   Future<void> markSynced(int id) async {
     final database = await _db.db;
-    await database.delete('pending_orders', where: 'id = ?', whereArgs: [id]);
+    await database.delete('pending_mutations', where: 'id = ?', whereArgs: [id]);
   }
 
   Future<void> markFailed(int id, String error) async {
     final database = await _db.db;
     await database.update(
-      'pending_orders',
+      'pending_mutations',
       {'status': 'failed', 'last_error': error},
       where: 'id = ?',
       whereArgs: [id],
@@ -95,7 +95,7 @@ class OutboxDao {
     final capped = retryCount.clamp(0, delaysMs.length - 1);
     final database = await _db.db;
     await database.update(
-      'pending_orders',
+      'pending_mutations',
       {
         'status': 'pending',
         'retry_count': retryCount + 1,
@@ -107,47 +107,52 @@ class OutboxDao {
     );
   }
 
+  /// Releases a `syncing` claim without counting a retry (session expired:
+  /// the batch stops and the rows must stay pending for the next kick).
+  Future<void> release(int id) async {
+    final database = await _db.db;
+    await database.update(
+      'pending_mutations',
+      {'status': 'pending'},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   Future<int> pendingCount({int storeId = 0}) async {
     final database = await _db.db;
     final rows = await database.rawQuery(
-      "SELECT COUNT(*) AS c FROM pending_orders "
+      "SELECT COUNT(*) AS c FROM pending_mutations "
       "WHERE status IN ('pending','syncing') AND $_ownedBy",
       [storeId],
     );
     return ((rows.first['c'] as num?) ?? 0).toInt();
   }
 
-  /// Still-unsynced bills, oldest first — the Orders screen merges these into
-  /// today's queue so a bill taken offline is visible immediately.
-  Future<List<PendingOrder>> pendingBills({int storeId = 0}) async {
+  Future<List<PendingMutation>> failed({int storeId = 0}) async {
     final database = await _db.db;
     final rows = await database.query(
-      'pending_orders',
-      where: "status IN ('pending','syncing') AND $_ownedBy",
-      whereArgs: [storeId],
-      orderBy: 'id ASC',
-    );
-    return [for (final map in rows) PendingOrder.fromMap(map)];
-  }
-
-  Future<List<PendingOrder>> failed({int storeId = 0}) async {
-    final database = await _db.db;
-    final rows = await database.query(
-      'pending_orders',
+      'pending_mutations',
       where: 'status = ? AND $_ownedBy',
       whereArgs: ['failed', storeId],
       orderBy: 'id DESC',
     );
-    return [for (final map in rows) PendingOrder.fromMap(map)];
+    return [for (final map in rows) PendingMutation.fromMap(map)];
   }
 
   Future<void> retryFailed(int id) async {
     final database = await _db.db;
     await database.update(
-      'pending_orders',
+      'pending_mutations',
       {'status': 'pending', 'next_retry_at': 0, 'last_error': ''},
       where: 'id = ?',
       whereArgs: [id],
     );
+  }
+
+  /// Sign-out hygiene: the queued writes belong to the signed-out store.
+  Future<int> clearAll() async {
+    final database = await _db.db;
+    return database.delete('pending_mutations');
   }
 }

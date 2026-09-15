@@ -1015,7 +1015,11 @@ class _AdminScreenState extends State<AdminScreen> {
 
     if (!mounted) return;
     if (saved == true) {
-      _snack(this.context, editItem == null ? 'Item added' : 'Item updated');
+      _snack(
+        this.context,
+        _menu.queuedNotice ??
+            (editItem == null ? 'Item added' : 'Item updated'),
+      );
     } else if (_menu.lastMutationError != null) {
       _snack(this.context, _menu.lastMutationError!, error: true);
     }
@@ -1193,7 +1197,11 @@ class _AdminScreenState extends State<AdminScreen> {
 
     if (!mounted) return;
     if (saved == true) {
-      _snack(this.context, editing ? 'Category renamed' : 'Category added');
+      _snack(
+        this.context,
+        _menu.queuedNotice ??
+            (editing ? 'Category renamed' : 'Category added'),
+      );
     } else if (_menu.lastMutationError != null) {
       _snack(this.context, _menu.lastMutationError!, error: true);
     }
@@ -1233,7 +1241,7 @@ class _AdminScreenState extends State<AdminScreen> {
     final ok = await _menu.removeItem(item.id);
     if (!mounted) return;
     if (ok) {
-      _snack(this.context, '"${item.name}" deleted');
+      _snack(this.context, _menu.queuedNotice ?? '"${item.name}" deleted');
     } else {
       _snack(
         this.context,
