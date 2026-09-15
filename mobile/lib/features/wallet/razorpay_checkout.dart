@@ -52,7 +52,22 @@ class RazorpayCheckout {
   ///
   /// Throws [RazorpayCancelledException] when the sheet is dismissed and
   /// [RazorpayErrorException] on any gateway failure.
+  ///
+  /// When the backend is running without real Razorpay keys (local dev / CI,
+  /// where `key_id` arrives empty — see `RazorpayService`), the Razorpay
+  /// overlay would fail instantly with a blank message. Instead of opening a
+  /// doomed sheet, fail fast HERE with a message that names the actual
+  /// problem ("keys not configured") so the cashier never sees a cryptic
+  /// "Payment failed".
   Future<RechargePayment> open(RechargeOrder order) {
+    final keyId = (order.keyId ?? '').trim();
+    if (keyId.isEmpty) {
+      throw RazorpayErrorException(
+        'Online payments are not set up on this server yet. '
+        'Ask the owner to add the Razorpay keys.',
+      );
+    }
+
     final completer = Completer<RechargePayment>();
 
     final razorpay = Razorpay();

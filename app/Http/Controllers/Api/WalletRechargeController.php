@@ -55,7 +55,7 @@ class WalletRechargeController extends Controller
             'razorpay_order_id' => $order['order_id'],
             'amount' => $amount,
             'currency' => $order['currency'] ?? 'INR',
-            'key_id' => $order['key_id'],
+            'key_id' => $order['key_id'] ?: null,
         ], status: 201);
     }
 
