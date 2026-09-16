@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- BizBite launch-screen backdrop for devices in dark mode — a near-black
+         purple drawn from the badge artwork so the round logo still reads. -->
+    <color name="bizbite_launch_background">#FF0B0713</color>
+</resources>

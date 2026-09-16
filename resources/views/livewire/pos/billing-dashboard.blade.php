@@ -39,9 +39,13 @@
     {{-- ---------------------------------------------------- TOP BAR --}}
     <header class="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-4 py-3 print:hidden sm:px-5">
         <div class="flex min-w-0 items-center gap-3">
-            {{-- Brand badge (mobile/assets/icons/bizbite_mark.png) --}}
-            <img src="{{ asset('images/bizbite_logo_mark.png') }}" alt="BizBite logo"
-                 width="36" height="36" class="h-9 w-9 shrink-0" />
+            {{-- Brand badge (mobile/assets/icons/bizbite_mark.png) on a light plate:
+                 the badge is dark purple, so it needs a light backing to stay
+                 legible against this slate-900 POS chrome. --}}
+            <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white shadow-sm">
+                <img src="{{ asset('images/bizbite_logo_mark.png') }}" alt="BizBite logo"
+                     width="28" height="28" class="h-7 w-7" />
+            </span>
             <div class="min-w-0">
                 <p class="truncate text-sm font-bold leading-tight">{{ auth()->user()?->store?->name ?? 'BizBite POS' }}</p>
                 <p class="truncate text-xs text-slate-400">Cashier: {{ auth()->user()?->name }}</p>

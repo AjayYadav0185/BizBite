@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- BizBite launch-screen backdrop (value-night/ overrides it in dark mode).
+         Kept in sync with AppColors.gradientStart in
+         mobile/lib/presentation/theme/bizbite_theme.dart so the hand-off from
+         the native splash into the Flutter SplashScreen shows no colour jump. -->
+    <color name="bizbite_launch_background">#F2F6F4</color>
+</resources>
