@@ -282,19 +282,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               child: Row(
                 children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: const BoxDecoration(
-                      gradient: AppGradients.brandMain,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.storefront_rounded,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
+                  // Brand badge (AppBrandAssets.mark) — replaces the gradient
+                  // disc so the drawer carries the real BizBite logo.
+                  const BizBiteLogoMark(size: 44),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(

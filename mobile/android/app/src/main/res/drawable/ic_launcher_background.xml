@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- BizBite adaptive-icon backdrop: the badge's own vertical gradient
+     (#3A2D56 -> #221738), matching public/images/bizbite_app_icon.png. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:endColor="#221738"
+        android:startColor="#3A2D56"
+        android:type="linear" />
+</shape>

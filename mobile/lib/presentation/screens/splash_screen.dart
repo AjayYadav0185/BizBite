@@ -40,18 +40,11 @@ class _SplashScreenState extends State<SplashScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                height: 72,
-                width: 72,
-                decoration: const BoxDecoration(
-                    gradient: AppGradients.brandMain,
-                    shape: BoxShape.circle),
-                child: const Icon(Icons.storefront_rounded,
-                    size: 36, color: Colors.white),
-              ),
+              // Brand badge (AppBrandAssets.mark) — the same artwork as the
+              // Android/iOS native launch screen, so the hand-off from the
+              // native splash into Flutter is seamless.
+              const BizBiteLogoMark(size: 116),
               const SizedBox(height: AppSpacing.lg),
-              Text('BizBite', style: theme.textTheme.headlineMedium),
-              const SizedBox(height: AppSpacing.sm),
               Text('Loading your outlet…',
                   style: theme.textTheme.bodyLarge
                       ?.copyWith(color: AppColors.muted)),

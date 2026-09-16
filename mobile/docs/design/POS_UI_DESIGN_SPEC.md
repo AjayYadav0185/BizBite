@@ -57,7 +57,7 @@ Short reference for the UI system only (colors, theme, components, patterns).
 - **`AppAppBar`:** transparent + page gradient, circular `ink` back/menu button (44px), brand pill (logo 34px + title 16/w700 + subtitle 11/muted), bell with badge + profile button.
 - **Bottom nav (`MainScreen`):** custom white bar + top shadow, 5 items (Home/Customers/Vehicles/JobCards/Inventory); active = `ink` circle + white icon, label `9.5px`.
 - **Drawer:** brand gradient header + section titles (11/w700/muted) + rows (36px `surfaceMuted` circle icon + 13.5/w600 + chevron).
-- **Auth header (`AuthBrandHeader`):** centered `assets/images/bizarohq.png` (h 64) + name `22/w800/ink`.
+- **Auth header (`AuthBrandHeader`):** centered `assets/icons/bizbite_mark.png` (h 88, via `BizBiteLogoMark`) + name `22/w800/ink`.
 
 ## 8. Reusable Widgets
 - **`SearchSection<T>`:** white `radius 16` search field + dropdown results card (maxH 200) + removable `Chip`s.
@@ -72,7 +72,7 @@ Short reference for the UI system only (colors, theme, components, patterns).
 - **Kanban/Analytics/Reports/Reminders/Stock/Insurance/Loyalty/Downloads/Notifications/Profile:** same card language — white panels, muted labels, pill chips, primary actions; charts use brand + status colors.
 
 ## 10. Assets / Icons / i18n
-- **Assets:** `assets/images/bizarohq.png`, `assets/icons/bizarohq.png`, `assets/animations/`, `assets/fonts/Poppins-*`.
+- **Assets:** `assets/icons/bizbite_logo.png` (master artwork), `assets/icons/bizbite_mark.png` (round badge — the one file the app bundles, see `AppBrandAssets`/`BizBiteLogoMark` in `bizbite_theme.dart`), `assets/animations/`, `assets/fonts/Poppins-*`. Every launcher/splash/web asset is regenerated from the master by `bash mobile/scripts/generate_brand_icons.sh`.
 - **Icons:** Material (primary) + `cupertino_icons` + `font_awesome_flutter`.
 - **i18n:** `l10n/` (en/hi/bn/gu/kn/mr/ta/te/ar) via `AppLocalizations`, RTL-ready.
 

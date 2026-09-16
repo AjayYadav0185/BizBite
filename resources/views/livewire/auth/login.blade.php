@@ -4,8 +4,10 @@
 
     <div class="w-full max-w-sm">
         <div class="mb-8 text-center">
-            {{-- Brand circle — theme AuthBrandHeader (brandMain gradient) --}}
-            <span class="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 text-2xl font-black text-white shadow-card">B</span>
+            {{-- Brand badge — the same artwork the Flutter AuthBrandHeader
+                 renders (mobile/assets/icons/bizbite_mark.png). --}}
+            <img src="{{ asset('images/bizbite_logo_mark.png') }}" alt="BizBite logo"
+                 width="80" height="80" class="mx-auto h-20 w-20 drop-shadow-sm" />
             <h1 class="mt-4 text-2xl font-black text-slate-900">BizBite</h1>
             <p class="text-sm text-slate-500">Sign in to your billing console</p>
         </div>

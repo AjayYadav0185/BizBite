@@ -26,7 +26,9 @@
     {{-- ---------------------------------------------------- TOP BAR --}}
     <header class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 px-4 py-3 sm:px-5">
         <div class="flex min-w-0 items-center gap-3">
-            <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-emerald-500 font-black text-slate-950">B</span>
+            {{-- Brand badge (mobile/assets/icons/bizbite_mark.png) --}}
+            <img src="{{ asset('images/bizbite_logo_mark.png') }}" alt="BizBite logo"
+                 width="36" height="36" class="h-9 w-9 shrink-0" />
             <div class="min-w-0">
                 <p class="truncate text-sm font-bold leading-tight">{{ auth()->user()?->store?->name ?? 'BizBite POS' }}</p>
                 <p class="truncate text-xs text-slate-400">Order Queue · {{ now()->format('d M Y') }}</p>

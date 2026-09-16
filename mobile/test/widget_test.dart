@@ -5,6 +5,7 @@
 // sign-in screen with an in-memory token store.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bizbite/core/network/dio_client.dart';
@@ -136,6 +137,27 @@ void main() {
     expect(find.text('BizBite POS'), findsOneWidget);
     expect(find.text('Sign in to start billing'), findsOneWidget);
     expect(find.text('Sign in'), findsOneWidget);
+  });
+
+  testWidgets('brand header renders the bundled BizBite logo mark',
+      (WidgetTester tester) async {
+    // Guards the pubspec `assets:` declaration: if it is ever dropped the mark
+    // silently falls back to the gradient disc (BizBiteLogoMark.errorBuilder),
+    // which would ship the APK with no logo on the auth screens.
+    final data = await rootBundle.load(AppBrandAssets.mark);
+    expect(data.lengthInBytes, greaterThan(1000)); // a real PNG, not a stub
+
+    await tester.pumpWidget(MaterialApp(
+      theme: BizBiteTheme.light(),
+      home: const Scaffold(body: Center(child: AuthBrandHeader())),
+    ));
+
+    expect(find.byType(BizBiteLogoMark), findsOneWidget);
+    final image = tester.widget<Image>(find.descendant(
+      of: find.byType(BizBiteLogoMark),
+      matching: find.byType(Image),
+    ));
+    expect((image.image as AssetImage).assetName, AppBrandAssets.mark);
   });
 
   test('AppColors exposes the spec single-source tokens', () {

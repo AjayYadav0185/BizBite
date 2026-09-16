@@ -143,6 +143,51 @@ abstract final class AppGradients {
   );
 }
 
+/// Spec §10 — brand artwork (the single source for every BizBite logo render).
+///
+/// Everything under `assets/icons/` is generated from the master logo by
+/// `bash mobile/scripts/generate_brand_icons.sh`; that same master also drives
+/// the Android/iOS launcher icons and the Laravel portal logos, so pointing
+/// every surface at [mark] keeps app, splash and web pixel-identical.
+abstract final class AppBrandAssets {
+  /// Round badge — coffee cup + "BizBite" wordmark on a transparent field.
+  static const String mark = 'assets/icons/bizbite_mark.png';
+}
+
+/// Round BizBite badge used across the app chrome (app bar, drawer, splash and
+/// auth header).
+///
+/// Falls back to the brand-gradient tile when the asset cannot be decoded
+/// (e.g. an over-stripped build) so production never shows a broken-image box.
+class BizBiteLogoMark extends StatelessWidget {
+  const BizBiteLogoMark({super.key, this.size = 34});
+
+  /// Rendered edge length in logical pixels (the badge artwork is square).
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Image.asset(
+        AppBrandAssets.mark,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.medium,
+        semanticLabel: 'BizBite',
+        errorBuilder: (context, error, stackTrace) => DecoratedBox(
+          decoration: const BoxDecoration(
+              gradient: AppGradients.brandMain, shape: BoxShape.circle),
+          child: Icon(Icons.storefront_rounded,
+              color: Colors.white, size: size * 0.55),
+        ),
+      ),
+    );
+  }
+}
+
 /// BizBite POS design system — ThemeData + legacy aliases.
 abstract final class BizBiteTheme {
   // --- Brand (legacy aliases → AppColors §3) --------------------------------
@@ -536,14 +581,9 @@ class BizAppBar extends StatelessWidget implements PreferredSizeWidget {
               border: Border.all(color: AppColors.border),
               boxShadow: AppShadows.card),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: const BoxDecoration(
-                  gradient: AppGradients.brandMain, shape: BoxShape.circle),
-              child: const Icon(Icons.storefront_rounded,
-                  color: Colors.white, size: 18),
-            ),
+            // Brand badge (AppBrandAssets.mark) — the 34px logo the spec
+            // reserves in the app-bar pill.
+            const BizBiteLogoMark(size: 34),
             const SizedBox(width: AppSpacing.sm),
             // Constrained-column text: a long store name shrinks to the
             // available app-bar width instead of overflowing it (no
@@ -662,14 +702,9 @@ class AuthBrandHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Column(children: [
-      Container(
-        height: 64,
-        width: 64,
-        decoration: const BoxDecoration(
-            gradient: AppGradients.brandMain, shape: BoxShape.circle),
-        child: const Icon(Icons.storefront_rounded,
-            color: Colors.white, size: 30),
-      ),
+      // Brand badge (AppBrandAssets.mark) — replaces the old gradient disc so
+      // the auth screens carry the real BizBite logo.
+      const BizBiteLogoMark(size: 88),
       const SizedBox(height: AppSpacing.md),
       Text(title,
           style: theme.textTheme.headlineSmall

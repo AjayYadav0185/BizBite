@@ -5,9 +5,10 @@
     ============================================================ --}}
     <header class="sticky top-0 z-40 border-b border-card-border bg-white">
         <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-            {{-- Brand pill (theme brandMain gradient: emerald-500 → 600) --}}
+            {{-- Brand badge (mobile/assets/icons/bizbite_mark.png) --}}
             <a href="{{ route('admin.dashboard') }}" class="flex min-w-0 items-center gap-3">
-                <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-lg font-black text-white shadow-card">B</span>
+                <img src="{{ asset('images/bizbite_logo_mark.png') }}" alt="BizBite logo"
+                     width="40" height="40" class="h-10 w-10 shrink-0" />
                 <span class="flex min-w-0 flex-col text-left leading-tight">
                     <span class="truncate text-sm font-bold text-slate-900">{{ auth()->user()?->store?->name }} — Owner Console</span>
                     <span class="truncate text-xs text-slate-500">{{ auth()->user()?->name }} · Admin</span>
