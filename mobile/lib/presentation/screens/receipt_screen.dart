@@ -257,7 +257,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
         _rule(),
         // --- Items: `<qty> x <name>` … `<subtotal>` (web shape) -------------
         Text(
-          'QTY x ITEM                                           AMOUNT',
+          'QTY x ITEM                          AMOUNT',
           style: BizBiteTheme.receiptMono(
             size: 10.5,
             weight: FontWeight.w800,
