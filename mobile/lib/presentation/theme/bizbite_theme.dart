@@ -571,7 +571,8 @@ class BizAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ),
       ),
-      title: Flexible(
+      title: Align(
+        alignment: Alignment.centerLeft,
         child: Container(
           padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.md, vertical: 6),

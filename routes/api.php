@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\OpsAdminController;
 use App\Http\Controllers\Api\OrderApiController;
 use App\Http\Controllers\Api\OpsController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\StoreController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\WalletRechargeController;
 use Illuminate\Http\Request;
@@ -118,6 +119,22 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::put('/profile', [ProfileController::class, 'update']);
     Route::put('/profile/password', [ProfileController::class, 'password']);
+
+    // Store profile & branding ("About shop" / "Manage shop" on My Profile).
+    // Every signed-in staff member can READ their own store's shop details;
+    // only the owner (admin) can change them — mirroring the web Receipt
+    // Customizer. The store is always resolved from the caller's own user
+    // row, so no tenant id is accepted from the client.
+    Route::get('/store', [StoreController::class, 'show'])
+        ->middleware('role:admin,cashier');
+
+    Route::middleware('role:admin')->group(function () {
+        Route::put('/store', [StoreController::class, 'update']);
+
+        // Multipart logo upload (jpg/jpeg/png/webp, max 2 MB) + removal.
+        Route::post('/store/logo', [StoreController::class, 'uploadLogo']);
+        Route::delete('/store/logo', [StoreController::class, 'destroyLogo']);
+    });
 
     // Customer Wallet (both staff roles — the wallet belongs to the caller).
     Route::get('/wallet/balance', [WalletController::class, 'balance'])

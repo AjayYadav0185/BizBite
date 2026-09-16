@@ -69,6 +69,11 @@ class ApiConfig {
   static const String profile = '/profile';
   static const String profilePassword = '/profile/password';
 
+  /// Store profile & branding ("About shop" / "Manage shop" on My Profile).
+  /// Reads are open to both roles; writes are `role:admin` on the server.
+  static const String store = '/store';
+  static const String storeLogo = '/store/logo';
+
   // Customer Wallet (see routes/api.php — role:admin,cashier).
   static const String walletBalance = '/wallet/balance';
   static const String walletRechargeInitiate = '/wallet/recharge/initiate';

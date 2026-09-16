@@ -11,6 +11,7 @@ import '../../core/utils/parse_utils.dart';
 import 'data/models/store_profile_model.dart';
 import 'data/models/user_model.dart';
 import 'data/repositories/auth_repository.dart';
+import 'data/repositories/store_repository.dart';
 
 /// Lifecycle of the authenticated session, mirroring the Laravel web app's
 /// `guest` / `auth` middleware split.
@@ -28,12 +29,19 @@ class SessionController with ChangeNotifier implements Listenable {
   SessionController({
     required this._tokenStore,
     required AuthRepository authRepository,
+    StoreRepository? storeRepository,
     this._client,
-  }) : _auth = authRepository;
+  })  : _auth = authRepository,
+        _storeApi = storeRepository;
 
   final TokenStore _tokenStore;
   final AuthRepository _auth;
   final DioClient? _client;
+
+  /// Store profile / branding endpoints (shop details + logo). Optional so
+  /// pure-domain callers (widget tests) can build a session without a network
+  /// graph; the My Profile screen always gets the real one from `app.dart`.
+  final StoreRepository? _storeApi;
 
   SessionPhase phase = SessionPhase.booting;
 
@@ -113,6 +121,8 @@ class SessionController with ChangeNotifier implements Listenable {
       _setPhase(SessionPhase.online);
       // Keep name/role fresh and verify the token still lives server-side.
       unawaited(_revalidateProfile());
+      // Same for the shop details/branding (logo, address, receipt template).
+      unawaited(_revalidateStore());
       return;
     }
 
@@ -158,6 +168,28 @@ class SessionController with ChangeNotifier implements Listenable {
     }
   }
 
+  /// True while the silent post-restore shop-details refresh is in flight.
+  bool _revalidatingStore = false;
+
+  /// Silent `GET /api/store` after a cold restore: refreshes the vaulted
+  /// branding (logo, address, receipt header/footer) without blocking the
+  /// portal. Network failures keep the cached copy — never a sign-out.
+  Future<void> _revalidateStore() async {
+    if (_revalidatingStore || _storeApi == null) return;
+    _revalidatingStore = true;
+
+    try {
+      final fresh = await _storeApi.show();
+      store = fresh;
+      await _cacheStore(fresh);
+      notifyListeners();
+    } on ApiException {
+      // Offline / 5xx: the cached shop details keep rendering.
+    } finally {
+      _revalidatingStore = false;
+    }
+  }
+
   /// Defensive cached-profile decode — a corrupt vault entry must fall back
   /// to server revalidation, never crash the boot sequence.
   UserModel? _decodeUser(String? cachedJson) {
@@ -195,7 +227,7 @@ class SessionController with ChangeNotifier implements Listenable {
       await _tokenStore.saveToken(result.plainTextToken);
       await _tokenStore.saveCachedUser(json.encode(result.user.toJson()));
       if (result.store != null) {
-        await _tokenStore.saveCachedStore(json.encode(result.store!.toJson()));
+        await _cacheStore(result.store!);
       }
 
       // Mirror the fresh token into the HTTP client so the very next call
@@ -258,6 +290,76 @@ class SessionController with ChangeNotifier implements Listenable {
       currentPassword: currentPassword,
       newPassword: newPassword,
     );
+  }
+
+  // -------------------------------------------------------------------
+  // Store profile / branding ("About shop" + "Manage shop")
+  // -------------------------------------------------------------------
+
+  /// Pull the latest shop details/branding from `GET /api/store` (both roles)
+  /// and cache them in the vault. Returns the fresh store.
+  Future<StoreProfileModel> refreshStore() async {
+    final fresh = await _requireStoreApi().show();
+    store = fresh;
+    await _cacheStore(fresh);
+    notifyListeners();
+    return fresh;
+  }
+
+  /// `PUT /api/store` — persist owner-edited shop details (name, address,
+  /// phones, tax ids, UPI VPA, currency, GST defaults, receipt template) and
+  /// refresh the in-memory + vaulted store. Throws [ApiException] (403 for a
+  /// cashier, 422 with field errors) which the profile screen surfaces inline.
+  Future<StoreProfileModel> updateStore(Map<String, dynamic> fields) async {
+    final fresh = await _requireStoreApi().update(fields);
+    store = fresh;
+    await _cacheStore(fresh);
+    notifyListeners();
+    return fresh;
+  }
+
+  /// `POST /api/store/logo` — upload/replace the shop logo (owner only).
+  Future<StoreProfileModel> uploadStoreLogo({
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    final fresh = await _requireStoreApi().uploadLogo(
+      bytes: bytes,
+      filename: filename,
+    );
+    store = fresh;
+    await _cacheStore(fresh);
+    notifyListeners();
+    return fresh;
+  }
+
+  /// `DELETE /api/store/logo` — remove the shop logo (owner only).
+  Future<StoreProfileModel> removeStoreLogo() async {
+    final fresh = await _requireStoreApi().removeLogo();
+    store = fresh;
+    await _cacheStore(fresh);
+    notifyListeners();
+    return fresh;
+  }
+
+  /// Best-effort vault write: a storage failure must never fail an otherwise
+  /// successful update — the boot revalidation re-caches it on next launch.
+  Future<void> _cacheStore(StoreProfileModel fresh) async {
+    try {
+      await _tokenStore.saveCachedStore(json.encode(fresh.toJson()));
+    } catch (_) {
+      // Ignore: see doc comment.
+    }
+  }
+
+  StoreRepository _requireStoreApi() {
+    final api = _storeApi;
+    if (api == null) {
+      throw ApiException(
+        message: 'Store management is unavailable in this build.',
+      );
+    }
+    return api;
   }
 
   /// Fired by the ErrorInterceptor when any authenticated call returns 401.

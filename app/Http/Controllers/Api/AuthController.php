@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\Audit;
 use App\Services\WalletService;
+use App\Support\StorePayload;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -156,12 +157,7 @@ class AuthController extends Controller
                 'role' => $user->role,
                 'store_id' => $user->store_id,
             ],
-            'store' => $user->store ? [
-                'id' => $user->store->id,
-                'name' => $user->store->name,
-                'upi_vpa' => $user->store->upi_vpa,
-                'currency' => $user->store->currency ?? 'INR',
-            ] : null,
+            'store' => StorePayload::for($user->store),
         ]);
     }
 

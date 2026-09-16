@@ -362,17 +362,35 @@ class _AdminScreenState extends State<AdminScreen> {
                 width: 46,
                 height: 46,
                 alignment: Alignment.center,
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   color: BizBiteTheme.brand,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Text(
-                  displayName[0].toUpperCase(),
-                  style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white),
-                ),
+                // Owner-uploaded shop logo (My Profile → Manage shop), with the
+                // brand monogram as the fallback whenever none is set — or when
+                // the logo URL cannot be fetched.
+                child: (store?.logoUrl ?? '').isEmpty
+                    ? Text(
+                        displayName[0].toUpperCase(),
+                        style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white),
+                      )
+                    : Image.network(
+                        store!.logoUrl,
+                        width: 46,
+                        height: 46,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Text(
+                          displayName[0].toUpperCase(),
+                          style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white),
+                        ),
+                      ),
               ),
               const SizedBox(width: 12),
               Expanded(

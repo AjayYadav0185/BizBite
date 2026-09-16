@@ -10,6 +10,7 @@ import '../core/sync/outbox_dao.dart';
 import '../core/sync/sync_controller.dart';
 import '../core/sync/sync_orchestrator.dart';
 import '../features/auth/data/repositories/auth_repository.dart';
+import '../features/auth/data/repositories/store_repository.dart';
 import '../features/auth/session_controller.dart';
 import '../features/menu/data/repositories/menu_repository.dart';
 import '../features/menu/menu_controller.dart';
@@ -89,6 +90,7 @@ class _BizBiteAppState extends State<BizBiteApp> {
     _session = SessionController(
       tokenStore: _tokenStore,
       authRepository: AuthRepository(client: _client),
+      storeRepository: StoreRepository(client: _client),
       client: _client,
     );
 

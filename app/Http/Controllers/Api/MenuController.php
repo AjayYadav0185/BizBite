@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\FoodItem;
+use App\Support\StorePayload;
 use Illuminate\Http\Request;
 
 class MenuController extends Controller
@@ -37,19 +38,10 @@ class MenuController extends Controller
             ->get();
 
         return [
-            'store' => $store ? [
-                'id' => $store->id,
-                'name' => $store->name,
-                'phone' => $store->phone,
-                'address' => $store->address,
-                'city' => $store->city,
-                'state' => $store->state,
-                'pincode' => $store->pincode,
-                'gstin' => $store->gstin,
-                'fssai_license' => $store->fssai_license,
-                'upi_vpa' => $store->upi_vpa,
-                'currency' => $store->currency ?? 'INR',
-            ] : null,
+            // Single canonical store shape (App\Support\StorePayload) — the
+            // same keys `POST /api/login` and `GET /api/store` return, so the
+            // Flutter StoreProfileModel parses one contract everywhere.
+            'store' => StorePayload::for($store),
             'categories' => $categories->map(fn (Category $category) => [
                 'id' => $category->id,
                 'uuid' => $category->uuid,
