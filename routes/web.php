@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AppDownloadController;
 use App\Livewire\Admin\Dashboard as AdminDashboard;
 use App\Livewire\Auth\Login;
 use App\Livewire\Pos\BillingDashboard;
@@ -23,6 +24,18 @@ Route::get('/', function () {
         Auth::user()->isAdmin() ? 'admin.dashboard' : 'pos.billing'
     );
 })->name('home');
+
+// ---------------------------------------------------------------------------
+// Public app distribution (/download-app)
+//
+// Landing page + download endpoint for the latest mobile build. The download
+// URL is permanent — each new APK dropped into storage/app/public/apks is
+// picked up automatically (see scripts/deploy-apk.sh and
+// AppDownloadController::latestApk()).
+// ---------------------------------------------------------------------------
+
+Route::get('/download-app', [AppDownloadController::class, 'page'])->name('download-app');
+Route::get('/download-app/download', [AppDownloadController::class, 'download'])->name('download-app.download');
 
 // ---------------------------------------------------------------------------
 // Authentication (shared by both portals)
