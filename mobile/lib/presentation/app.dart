@@ -12,6 +12,8 @@ import '../core/sync/sync_orchestrator.dart';
 import '../features/auth/data/repositories/auth_repository.dart';
 import '../features/auth/data/repositories/store_repository.dart';
 import '../features/auth/session_controller.dart';
+import '../features/assistant/assistant_controller.dart';
+import '../features/assistant/data/repositories/assistant_repository.dart';
 import '../features/menu/data/repositories/menu_repository.dart';
 import '../features/menu/menu_controller.dart';
 import '../features/ops/console_controller.dart';
@@ -75,6 +77,7 @@ class _BizBiteAppState extends State<BizBiteApp> {
   late ShiftsController _shifts;
   late ReportsController _reports;
   late ConsoleController _console;
+  late AssistantController _assistant;
   final ThemeProvider _theme = ThemeProvider();
 
   @override
@@ -127,6 +130,12 @@ class _BizBiteAppState extends State<BizBiteApp> {
     _shifts = ShiftsController(repository: opsRepository);
     _reports = ReportsController(repository: opsRepository);
     _console = ConsoleController(repository: opsRepository);
+
+    // Owner-only AI assistant (server grounds answers in this store's data;
+    // online-only — a chat needs the backend to think, nothing to replay).
+    _assistant = AssistantController(
+      repository: AssistantRepository(client: _client),
+    );
 
     _orchestrator = SyncOrchestrator(
       client: _client,
@@ -223,6 +232,7 @@ class _BizBiteAppState extends State<BizBiteApp> {
           shifts: _shifts,
           reports: _reports,
           console: _console,
+          assistant: _assistant,
         );
       },
     );

@@ -40,6 +40,7 @@ class AuditLog extends Model
     public const ACTION_STAFF_CREATED = 'staff_created';
     public const ACTION_STAFF_DEACTIVATED = 'staff_deactivated';
     public const ACTION_PROFILE_UPDATED = 'profile_updated';
+    public const ACTION_ASSISTANT_ASK = 'assistant_ask';
 
     protected $fillable = [
         'store_id',

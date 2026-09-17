@@ -5,6 +5,7 @@ import 'package:flutter/material.dart' hide MenuController;
 import '../core/sync/sync_controller.dart';
 import '../core/sync/sync_orchestrator.dart';
 import '../features/auth/session_controller.dart';
+import '../features/assistant/assistant_controller.dart';
 import '../features/menu/menu_controller.dart';
 import '../features/orders/cart_controller.dart';
 import '../features/orders/order_checkout.dart';
@@ -16,6 +17,7 @@ import '../features/ops/reports_controller.dart';
 import '../features/ops/shifts_controller.dart';
 import '../features/wallet/wallet_controller.dart';
 import 'screens/admin_screen.dart';
+import 'screens/assistant_screen.dart';
 import 'screens/console_screen.dart';
 import 'screens/orders_screen.dart';
 import 'screens/pos_screen.dart';
@@ -51,6 +53,7 @@ class HomeScreen extends StatefulWidget {
     required this.shifts,
     required this.reports,
     required this.console,
+    required this.assistant,
   });
 
   final SessionController session;
@@ -72,6 +75,9 @@ class HomeScreen extends StatefulWidget {
   final ShiftsController shifts;
   final ReportsController reports;
   final ConsoleController console;
+
+  /// Owner-only AI Store Assistant (Groq chatbot over this store's data).
+  final AssistantController assistant;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -444,6 +450,23 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             if (isAdmin) ...[
+              _navTile(
+                context,
+                icon: Icons.auto_awesome_rounded,
+                title: 'Store Assistant',
+                subtitle: 'AI answers from your store data',
+                selected: false,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => AssistantScreen(
+                        controller: widget.assistant,
+                      ),
+                    ),
+                  );
+                },
+              ),
               _navTile(
                 context,
                 icon: Icons.insights_rounded,

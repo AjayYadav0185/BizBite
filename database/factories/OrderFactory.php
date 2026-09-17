@@ -31,7 +31,7 @@ class OrderFactory extends Factory
         return [
             'store_id' => Store::factory(),
             'user_id' => User::factory(),
-            'order_number' => 'ORD-' . fake()->unique()->numberBased(10000),
+            'order_number' => 'ORD-' . fake()->unique()->numberBetween(10000, 99999),
             'total_amount' => fake()->randomFloat(2, 5, 500),
             'payment_mode' => fake()->randomElement(PaymentMode::cases()),
             'status' => fake()->randomElement(OrderStatus::cases()),

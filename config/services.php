@@ -40,4 +40,26 @@ return [
         'key_secret' => env('RAZORPAY_KEY_SECRET'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Groq (Store Assistant chatbot)
+    |--------------------------------------------------------------------------
+    |
+    | The owner-facing "Store Assistant" in the Flutter app calls Groq's
+    | OpenAI-compatible /chat/completions endpoint. The API key never leaves
+    | the server: the Flutter app talks to POST /api/assistant/ask, which is
+    | Sanctum + role:admin protected, and the answer is grounded exclusively
+    | in the caller's own store data (see App\Services\StoreChatService).
+    |
+    | model — any chat model Groq serves; override with GROQ_MODEL.
+    | timeout — seconds to wait for the completion (rush-hour friendly).
+    |
+    */
+    'groq' => [
+        'key' => env('GROQ_API_KEY'),
+        'model' => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+        'base_url' => env('GROQ_BASE_URL', 'https://api.groq.com/openai/v1'),
+        'timeout' => (int) env('GROQ_TIMEOUT', 45),
+    ],
+
 ];

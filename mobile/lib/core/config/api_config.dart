@@ -79,6 +79,10 @@ class ApiConfig {
   static const String walletRechargeInitiate = '/wallet/recharge/initiate';
   static const String walletRechargeVerify = '/wallet/recharge/verify';
 
+  // Owner-only AI assistant (Groq chatbot grounded in THIS store's data).
+  // POST /assistant/ask — server enforces role:admin; cashiers get 403.
+  static const String assistantAsk = '/assistant/ask';
+
   // Admin-only menu writes (role:admin, see routes/api.php).
   static const String categories = '/categories';
   static String category(int id) => '/categories/$id';

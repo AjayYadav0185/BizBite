@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\OrderApiController;
 use App\Http\Controllers\Api\OpsController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\StoreController;
+use App\Http\Controllers\Api\StoreChatController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\WalletRechargeController;
 use Illuminate\Http\Request;
@@ -135,6 +136,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/store/logo', [StoreController::class, 'uploadLogo']);
         Route::delete('/store/logo', [StoreController::class, 'destroyLogo']);
     });
+
+    // Owner-only AI assistant (Groq chatbot grounded in THIS store's data).
+    // POST /api/assistant/ask  { question, history? } -> { reply, model, ... }
+    // role:admin is intentional — the bot reads revenue/refunds/staff, so it
+    // must never be reachable by cashier accounts or anonymous callers.
+    Route::post('/assistant/ask', [StoreChatController::class, 'ask'])
+        ->middleware('role:admin');
 
     // Customer Wallet (both staff roles — the wallet belongs to the caller).
     Route::get('/wallet/balance', [WalletController::class, 'balance'])
