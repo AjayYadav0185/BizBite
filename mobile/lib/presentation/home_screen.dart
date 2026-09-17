@@ -149,46 +149,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     return Scaffold(
-      // No app bar on purpose: the store name overflowed the brand pill
-      // (yellow/black stripes). The store name now only lives in the drawer
-      // header; a standalone menu button keeps the drawer reachable.
+      // App bar restored: BizAppBar ellipsises long store names inside its
+      // brand pill (ConstrainedBox), so the old overflow stripes can't
+      // return. Its round menu button opens the drawer below.
+      appBar: BizAppBar(title: storeName, subtitle: 'Pay Desk'),
       drawer: _navDrawer(context, storeName: storeName),
       body: Container(
         decoration: const BoxDecoration(gradient: AppGradients.page),
         child: Column(
           children: [
-            // Top row — round menu button (drawer trigger). Uses a Builder so
-            // `Scaffold.of` finds the Scaffold below this context.
-            SafeArea(
-              bottom: false,
-              child: Row(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: AppSpacing.lg),
-                    child: SizedBox(
-                      width: 44,
-                      height: 44,
-                      child: Material(
-                        color: AppColors.ink,
-                        shape: const CircleBorder(),
-                        child: Builder(
-                          builder: (buttonContext) => InkWell(
-                            customBorder: const CircleBorder(),
-                            onTap: () =>
-                                Scaffold.of(buttonContext).openDrawer(),
-                            child: const Icon(
-                              Icons.menu_rounded,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
             SyncStatusBanner(
               sync: widget.sync,
               onRetry: () => widget.orchestrator.kick(),
