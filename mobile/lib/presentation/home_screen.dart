@@ -176,8 +176,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             customBorder: const CircleBorder(),
                             onTap: () =>
                                 Scaffold.of(buttonContext).openDrawer(),
-                            child: const Icon(Icons.menu_rounded,
-                                color: Colors.white, size: 20),
+                            child: const Icon(
+                              Icons.menu_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
                           ),
                         ),
                       ),
@@ -354,157 +357,174 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            _navTile(
-              context,
-              icon: Icons.point_of_sale_rounded,
-              title: 'Billing',
-              subtitle: 'Pay desk & quick orders',
-              selected: _tabIndex == 0,
-              onTap: () {
-                _selectTab(0);
-                Navigator.of(context).pop();
-              },
-            ),
-            _navTile(
-              context,
-              icon: Icons.storefront_rounded,
-              title: 'Store',
-              subtitle: isAdmin
-                  ? 'Manage menu & categories'
-                  : 'Read-only store overview',
-              selected: _tabIndex == 1,
-              trailing: isAdmin ? null : _viewOnlyChip(),
-              onTap: () {
-                _selectTab(1);
-                Navigator.of(context).pop();
-              },
-            ),
-            const SizedBox(height: 10),
-            _navTile(
-              context,
-              icon: Icons.account_balance_wallet_rounded,
-              title: 'Wallet',
-              subtitle: 'Points, history & recharge',
-              selected: false,
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => WalletScreen(wallet: widget.wallet, sync: widget.sync),
-                  ),
-                );
-              },
-            ),
-            _navTile(
-              context,
-              icon: Icons.receipt_long_rounded,
-              title: 'Orders',
-              subtitle: 'Today’s queue, refunds & delivery',
-              selected: false,
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => OrderQueueScreen(
-                          controller: widget.queue,
-                          sync: widget.sync,
-                        ),
-                  ),
-                );
-              },
-            ),
-            _navTile(
-              context,
-              icon: Icons.lock_open_rounded,
-              title: 'Shifts',
-              subtitle: 'Cash drawer open & close',
-              selected: false,
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ShiftsScreen(
-                          controller: widget.shifts,
-                          sync: widget.sync,
-                        ),
-                  ),
-                );
-              },
-            ),
-            _navTile(
-              context,
-              icon: Icons.person_outline_rounded,
-              title: 'My Profile',
-              subtitle: 'Account, password & receipt print',
-              selected: false,
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ProfileScreen(
-                      session: widget.session,
-                      printSettings: widget.printSettings,
+            // Scrollable nav area — the owner now has 7 tiles (Billing, Store,
+            // Wallet, Orders, Shifts, Profile + Reports / Tables & Staff /
+            // Store Assistant), which no longer fits small phone drawers as a
+            // fixed Column (that used to overflow at the bottom). Wrapping the
+            // tiles in an Expanded + SingleChildScrollView lets the list
+            // scroll while the header and the signed-in footer stay pinned.
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _navTile(
+                      context,
+                      icon: Icons.point_of_sale_rounded,
+                      title: 'Billing',
+                      subtitle: 'Pay desk & quick orders',
+                      selected: _tabIndex == 0,
+                      onTap: () {
+                        _selectTab(0);
+                        Navigator.of(context).pop();
+                      },
                     ),
-                  ),
-                );
-              },
-            ),
-            if (isAdmin) ...[
-              _navTile(
-                context,
-                icon: Icons.auto_awesome_rounded,
-                title: 'Store Assistant',
-                subtitle: 'AI answers from your store data',
-                selected: false,
-                onTap: () {
-                  Navigator.of(context).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => AssistantScreen(
-                        controller: widget.assistant,
+                    _navTile(
+                      context,
+                      icon: Icons.storefront_rounded,
+                      title: 'Store',
+                      subtitle: isAdmin
+                          ? 'Manage menu & categories'
+                          : 'Read-only store overview',
+                      selected: _tabIndex == 1,
+                      trailing: isAdmin ? null : _viewOnlyChip(),
+                      onTap: () {
+                        _selectTab(1);
+                        Navigator.of(context).pop();
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _navTile(
+                      context,
+                      icon: Icons.account_balance_wallet_rounded,
+                      title: 'Wallet',
+                      subtitle: 'Points, history & recharge',
+                      selected: false,
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => WalletScreen(
+                              wallet: widget.wallet,
+                              sync: widget.sync,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    _navTile(
+                      context,
+                      icon: Icons.receipt_long_rounded,
+                      title: 'Orders',
+                      subtitle: 'Today’s queue, refunds & delivery',
+                      selected: false,
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => OrderQueueScreen(
+                              controller: widget.queue,
+                              sync: widget.sync,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    _navTile(
+                      context,
+                      icon: Icons.lock_open_rounded,
+                      title: 'Shifts',
+                      subtitle: 'Cash drawer open & close',
+                      selected: false,
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ShiftsScreen(
+                              controller: widget.shifts,
+                              sync: widget.sync,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    _navTile(
+                      context,
+                      icon: Icons.person_outline_rounded,
+                      title: 'My Profile',
+                      subtitle: 'Account, password & receipt print',
+                      selected: false,
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ProfileScreen(
+                              session: widget.session,
+                              printSettings: widget.printSettings,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    if (isAdmin) ...[
+                      _navTile(
+                        context,
+                        icon: Icons.auto_awesome_rounded,
+                        title: 'Store Assistant',
+                        subtitle: 'AI answers from your store data',
+                        selected: false,
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  AssistantScreen(controller: widget.assistant),
+                            ),
+                          );
+                        },
                       ),
-                    ),
-                  );
-                },
+                      _navTile(
+                        context,
+                        icon: Icons.insights_rounded,
+                        title: 'Reports',
+                        subtitle: 'Hourly sales, best-sellers & range KPIs',
+                        selected: false,
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ReportsScreen(
+                                controller: widget.reports,
+                                sync: widget.sync,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      _navTile(
+                        context,
+                        icon: Icons.dashboard_customize_rounded,
+                        title: 'Tables & Staff',
+                        subtitle: 'Floor plan, campaigns & cashiers',
+                        selected: false,
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ConsoleScreen(
+                                controller: widget.console,
+                                sync: widget.sync,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ],
+                ),
               ),
-              _navTile(
-                context,
-                icon: Icons.insights_rounded,
-                title: 'Reports',
-                subtitle: 'Hourly sales, best-sellers & range KPIs',
-                selected: false,
-                onTap: () {
-                  Navigator.of(context).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => ReportsScreen(
-                          controller: widget.reports,
-                          sync: widget.sync,
-                        ),
-                    ),
-                  );
-                },
-              ),
-              _navTile(
-                context,
-                icon: Icons.dashboard_customize_rounded,
-                title: 'Tables & Staff',
-                subtitle: 'Floor plan, campaigns & cashiers',
-                selected: false,
-                onTap: () {
-                  Navigator.of(context).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => ConsoleScreen(
-                          controller: widget.console,
-                          sync: widget.sync,
-                        ),
-                    ),
-                  );
-                },
-              ),
-            ],
-            const Spacer(),
+            ),
             const Divider(height: 1, color: BizBiteTheme.hairline),
             // Signed-in staff summary.
             Padding(
