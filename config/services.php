@@ -57,8 +57,10 @@ return [
     */
     'groq' => [
         'key' => env('GROQ_API_KEY'),
-        'model' => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
-        'base_url' => env('GROQ_BASE_URL', 'https://api.groq.com/openai/v1'),
+        // `?:` (not a plain default) so an EMPTY GROQ_MODEL= line in .env
+        // still resolves to the fallback instead of sending a blank model.
+        'model' => env('GROQ_MODEL') ?: 'openai/gpt-oss-120b',
+        'base_url' => env('GROQ_BASE_URL') ?: 'https://api.groq.com/openai/v1',
         'timeout' => (int) env('GROQ_TIMEOUT', 45),
     ],
 

@@ -51,7 +51,7 @@ final class StoreChatService
     public function ask(User $user, string $question, array $history = []): array
     {
         $apiKey = trim((string) config('services.groq.key'));
-        $model = (string) config('services.groq.model', 'llama-3.3-70b-versatile');
+        $model = (string) config('services.groq.model') ?: 'openai/gpt-oss-120b';
 
         if ($apiKey === '') {
             throw new OrderPlacementException(

@@ -17,10 +17,15 @@ class ApiConfig {
   ApiConfig._();
 
   /// Backend root for ALL API calls. No trailing slash.
+  // static const String baseUrl = 'http://10.0.2.2/BizBite/public/api';
+  // Local MAMP dev server (owner Store Assistant lives here until the next
+  // Render deploy): physical tablets on the same Wi-Fi use the LAN IP;
+  // Android emulator users can swap to http://10.0.2.2:8080/api.
   // static const String baseUrl = 'http://10.20.1.21:8080/api';
-  static const String baseUrl = 'https://bizbite.onrender.com/api';
-  
+  // static const String baseUrl = 'https://bizbite.onrender.com/api';
 
+
+  static const String baseUrl = 'https://bizbite.onrender.com/api';
   /// Standard headers every BizBite request carries.
   static const Map<String, String> defaultHeaders = {
     'Accept': 'application/json',
