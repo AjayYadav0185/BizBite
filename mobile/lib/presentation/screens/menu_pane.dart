@@ -312,7 +312,7 @@ class _ItemCard extends StatelessWidget {
     final inCart = quantityInCart > 0;
 
     return Material(
-      color: Colors.white,
+      color: inCart ? AppColors.infoBg : Colors.white,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -367,15 +367,26 @@ class _ItemCard extends StatelessWidget {
                 ],
               ),
               const Spacer(),
-              Text(
-                item.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 13.5,
-                  height: 1.15,
-                  fontWeight: FontWeight.w600,
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2, right: 6),
+                    child: FoodTypeMark(type: item.foodType),
+                  ),
+                  Expanded(
+                    child: Text(
+                      item.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        height: 1.15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 6),
               Row(
@@ -408,6 +419,40 @@ class _ItemCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+/// FSSAI-style food mark: square outline with a dot — green veg, red
+/// non-veg, amber egg.
+class FoodTypeMark extends StatelessWidget {
+  const FoodTypeMark({super.key, required this.type, this.size = 13});
+
+  final String type;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (type) {
+      'non_veg' => AppColors.nonVeg,
+      'egg' => AppColors.egg,
+      _ => AppColors.veg,
+    };
+    return Tooltip(
+      message: type == 'non_veg' ? 'Non-veg' : (type == 'egg' ? 'Contains egg' : 'Veg'),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          border: Border.all(color: color, width: 1.4),
+          borderRadius: BorderRadius.circular(2.5),
+        ),
+        alignment: Alignment.center,
+        child: Container(
+          width: size * 0.45,
+          height: size * 0.45,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
       ),
     );

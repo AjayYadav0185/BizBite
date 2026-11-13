@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../../../../core/utils/parse_utils.dart';
+import '../../../orders/data/models/store_model.dart';
 
 /// Store branding/profile payload, shared by `POST /api/login`,
 /// `GET /api/menu` and `GET|PUT /api/store`:
@@ -89,6 +90,22 @@ class StoreProfileModel extends Equatable {
         if (state.isNotEmpty) state,
         if (pincode.isNotEmpty) pincode,
       ].join(', ');
+
+  /// The receipt-side store block (POS UPI QR, offline GST invoice).
+  StoreModel toReceiptStore() => StoreModel(
+        name: name,
+        phone: phone,
+        address: address,
+        city: city,
+        state: state,
+        pincode: pincode,
+        printHeader: printHeader,
+        printFooter: printFooter,
+        gstin: gstin,
+        fssai: fssaiLicense,
+        gstEnabled: isGstEnabled,
+        upiVpa: upiVpa,
+      );
 
   factory StoreProfileModel.fromJson(Map<String, dynamic> json) =>
       StoreProfileModel(

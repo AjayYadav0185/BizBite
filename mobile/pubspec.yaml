@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ^3.12.2
@@ -71,6 +71,7 @@ dependencies:
   sqflite: ^2.4.4
   path: ^1.9.1
   connectivity_plus: ^7.3.1
+  url_launcher: ^6.3.3
 
 # Vendored copy of blue_thermal_printer 1.2.3 with Android fixes for modern
 # AGP: explicit `namespace`, compileSdk 34, and no legacy manifest `package`

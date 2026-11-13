@@ -103,6 +103,27 @@ class CampaignModel extends Equatable {
   static String _trimZeros(double v) =>
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
 
+  /// Same rule as `Campaign::isLive()` on the server.
+  bool isLiveAt(DateTime now) {
+    if (!isActive) return false;
+    if (startsAt != null && now.isBefore(startsAt!)) return false;
+    if (endsAt != null && now.isAfter(endsAt!)) return false;
+    return true;
+  }
+
+  /// Same rule as `Campaign::discountFor()`: min-order gate, percent or flat,
+  /// never more than the subtotal. Rounded to paise like bcmath (truncating).
+  double discountFor(double subtotal, {DateTime? now}) {
+    if (!isLiveAt(now ?? DateTime.now())) return 0;
+    if (subtotal < minOrderAmount) return 0;
+    // Exact integer paise (like bcmath): avoids 199 × 10% = 19.8999…
+    final subtotalPaise = (subtotal * 100).round();
+    final raw = type == CampaignType.percent
+        ? (subtotalPaise * (value * 100).round() ~/ 10000) / 100
+        : value;
+    return raw > subtotal ? subtotal : raw;
+  }
+
   factory CampaignModel.fromJson(Map<String, dynamic> json) => CampaignModel(
         id: toInt(json['id']),
         name: toNullableString(json['name']),

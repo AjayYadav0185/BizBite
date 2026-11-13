@@ -1,39 +1,41 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/utils/india.dart';
 import '../../features/auth/session_controller.dart';
 import '../../features/orders/data/models/order_models.dart';
 import '../../features/orders/data/models/order_receipt_model.dart';
 import '../../features/orders/order_flow_controller.dart';
+import '../../features/orders/receipt_document.dart';
+import '../services/print_settings.dart';
 import '../services/receipt_printer.dart';
 import '../theme/bizbite_theme.dart';
 import '../widgets/thermal_paper.dart';
 
-/// Screen 3 — Receipt Preview (thermal-printer optimized).
+/// Screen 3 — settled bill: thermal preview + Print bill / KOT / WhatsApp.
 ///
-/// Digital mirror of the Laravel `billing-dashboard` `#thermal-receipt`
-/// block (`resources/views/livewire/pos/billing-dashboard.blade.php`):
-/// the same 72mm / 32-col mono layout, same line order, same store
-/// template lines (`print_header` / `print_footer` saved via the web
-/// Receipt Customizer and served inside `POST /api/orders` → `store`).
-/// The footer holds the two primary actions: "Print Bill via Bluetooth"
-/// (bottom) and "New Order".
-///
-/// Screen preview, Bluetooth ESC/POS bytes ([ReceiptPrinter]) and the web
-/// `window.print()` block all render this one template, so what the
-/// cashier verifies on-screen is what reaches paper.
+/// The preview renders [ReceiptDocument] — the exact fixed-width lines the
+/// Bluetooth printer receives — so the cashier verifies what reaches paper.
+/// Also used for reprints from the order history ([onClose] pops back).
 class ReceiptScreen extends StatefulWidget {
   const ReceiptScreen({
     super.key,
     required this.receipt,
-    required this.session,
-    required this.orderFlow,
+    this.session,
     required this.printer,
+    this.orderFlow,
+    this.printSettings,
+    this.onClose,
   });
 
   final OrderReceiptModel receipt;
-  final SessionController session;
-  final OrderFlowController orderFlow;
+  final SessionController? session;
+  final OrderFlowController? orderFlow;
   final ReceiptPrinter printer;
+  final PrintSettings? printSettings;
+
+  /// Overrides the "New order" action (reprint flow closes the page).
+  final VoidCallback? onClose;
 
   @override
   State<ReceiptScreen> createState() => _ReceiptScreenState();
@@ -42,42 +44,67 @@ class ReceiptScreen extends StatefulWidget {
 class _ReceiptScreenState extends State<ReceiptScreen> {
   bool _printing = false;
   String _printStatus = '';
+  bool _printOk = true;
+  bool _showKot = false;
 
-  /// On-paper ink colors — single source AppColors (spec §3).
-  static const Color _ink = AppColors.paperInk;
-  static const Color _inkMuted = AppColors.paperMuted;
+  int get _columns => widget.printSettings?.columns ?? 32;
 
-  Future<void> _reprint() async {
+  OrderReceiptModel get _r => widget.receipt;
+
+  Future<void> _print({required bool kot}) async {
     if (_printing) return;
     setState(() {
       _printing = true;
       _printStatus = '';
     });
 
-    final ok = await widget.printer.printReceipt(widget.receipt);
+    final ok = kot
+        ? await widget.printer.printKot(_r, columns: _columns)
+        : await widget.printer.printReceipt(_r, columns: _columns);
+    if (!mounted) return;
     setState(() {
       _printing = false;
+      _printOk = ok;
       _printStatus = ok
-          ? 'Receipt sent to the printer.'
+          ? (kot ? 'KOT sent to the printer.' : 'Bill sent to the printer.')
           : (widget.printer.lastError.isNotEmpty
-                ? widget.printer.lastError
-                : 'Printing failed.');
+              ? widget.printer.lastError
+              : 'Printing failed.');
     });
+  }
+
+  Future<void> _whatsapp() async {
+    final uri = India.whatsappUri(ReceiptDocument.whatsappText(_r),
+        mobile: _r.customerPhone);
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('WhatsApp is not installed on this device.')),
+      );
+    }
+  }
+
+  void _close() {
+    if (widget.onClose != null) {
+      widget.onClose!();
+    } else {
+      widget.orderFlow?.clearReceipt();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Dark "printer bed" — makes the paper roll the hero.
       backgroundColor: AppColors.printerBed,
       body: SafeArea(
         child: Column(
           children: [
             _statusHeader(),
+            _copyToggle(),
             Expanded(
               child: Center(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   child: _paper(),
                 ),
               ),
@@ -89,64 +116,57 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     );
   }
 
-  /// Success Green banner — the paid/settled status signal.
-  /// Offline bills render an amber "queued" variant (LOCAL-XXXX).
   Widget _statusHeader() {
-    final isOffline = widget.receipt.isOffline;
+    final offline = _r.isOffline;
+    final reprint = _r.isReprint;
+    final fg = offline ? AppColors.warningDeep : AppColors.successDeep;
+    final title = offline
+        ? 'Saved offline — will sync'
+        : reprint
+            ? 'Bill ${_r.orderNumber}'
+            : '₹${India.number(_r.totalAmount)} received';
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isOffline
-            ? AppColors.warningBg
-            : BizBiteTheme.successContainer,
+        color: offline ? AppColors.warningBg : AppColors.successBg,
         borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Row(
         children: [
           Icon(
-            isOffline
+            offline
                 ? Icons.wifi_off_rounded
-                : Icons.check_circle_rounded,
-            size: 28,
-            color: isOffline
-                ? AppColors.warningDeep
-                : BizBiteTheme.success,
+                : reprint
+                    ? Icons.history_rounded
+                    : Icons.check_circle_rounded,
+            size: 30,
+            color: fg,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  isOffline ? 'Saved offline — will sync' : 'Payment received',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: isOffline
-                        ? AppColors.warningDeep
-                        : AppColors.successDeep,
-                  ),
-                ),
+                Text(title,
+                    style: TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.w800, color: fg)),
                 const SizedBox(height: 2),
                 Text(
-                  '${widget.receipt.paymentMode.label} · Bill #${widget.receipt.orderNumber}',
+                  [
+                    _r.paymentMode.label,
+                    if (!reprint) 'Bill #${_r.orderNumber}',
+                    if (_r.changeAmount > 0)
+                      'Return change ₹${India.number(_r.changeAmount)}',
+                  ].join(' · '),
                   style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: isOffline
-                        ? AppColors.warningDeep
-                        : AppColors.successDeep,
-                  ),
+                      fontSize: 12.5, fontWeight: FontWeight.w600, color: fg),
                 ),
-                if (isOffline)
-                  const Text(
+                if (offline)
+                  Text(
                     'Queued locally — auto-syncs when online. Same bill, no duplicates.',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.warningDeep,
-                    ),
+                    style: TextStyle(fontSize: 11.5, color: fg),
                   ),
                 if (_printStatus.isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -154,10 +174,8 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                     _printStatus,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: isOffline
-                          ? AppColors.warningDeep
-                          : AppColors.successDeep,
+                      fontWeight: FontWeight.w600,
+                      color: _printOk ? fg : AppColors.errorDeep,
                     ),
                   ),
                 ],
@@ -169,18 +187,46 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     );
   }
 
-  /// The thermal paper roll — jagged tear edges hugging a white sheet.
+  /// Switch the preview between the customer bill and the kitchen ticket.
+  Widget _copyToggle() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: SegmentedButton<bool>(
+        style: SegmentedButton.styleFrom(
+          backgroundColor: Colors.white10,
+          foregroundColor: Colors.white70,
+          selectedBackgroundColor: Colors.white,
+          selectedForegroundColor: AppColors.ink,
+          side: const BorderSide(color: Colors.white24),
+        ),
+        showSelectedIcon: false,
+        segments: const [
+          ButtonSegment(value: false, label: Text('Bill'), icon: Icon(Icons.receipt_long_rounded, size: 18)),
+          ButtonSegment(value: true, label: Text('KOT'), icon: Icon(Icons.soup_kitchen_rounded, size: 18)),
+        ],
+        selected: {_showKot},
+        onSelectionChanged: (v) => setState(() => _showKot = v.first),
+      ),
+    );
+  }
+
   Widget _paper() {
+    final doc = ReceiptDocument(columns: _columns);
+    final lines = _showKot ? doc.kot(_r) : doc.bill(_r);
+    // Size the paper so `columns` monospace characters fit exactly.
+    final width = _columns <= 32 ? 300.0 : 360.0;
+    final fontSize = (width - 24) / _columns / 0.6;
+
     return SizedBox(
-      width: 320,
+      width: width,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const TearEdge(color: Colors.white, isTop: true),
           Container(
             color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-            child: _receiptContent(),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            child: ReceiptLinesView(lines: lines, fontSize: fontSize),
           ),
           const TearEdge(color: Colors.white, isTop: false),
         ],
@@ -188,261 +234,116 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     );
   }
 
-  /// Monospaced receipt body — 1:1 mirror of the Laravel `#thermal-paper`
-  /// block so preview, Bluetooth ESC/POS bytes ([ReceiptPrinter]) and the
-  /// web `window.print()` output are identical.
-  ///
-  /// Line order (lock-step with `billing-dashboard.blade.php`):
-  /// header template → store name/address/phone → 32-col rule →
-  /// `Bill: <n>` + date row → cashier → rule → `<qty> x <name>` rows →
-  /// rule → TOTAL / Paid-via rows → rule → footer template → branding.
-  Widget _receiptContent() {
-    final receipt = widget.receipt;
-    final store = receipt.store;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // --- Store branding: Laravel owner template lines ------------------
-        if (store.printHeader.isNotEmpty)
-          Text(
-            store.printHeader.toUpperCase(),
-            textAlign: TextAlign.center,
-            style: BizBiteTheme.receiptMono(size: 12, weight: FontWeight.w800),
-          ),
-        Text(
-          store.name.toUpperCase(),
-          textAlign: TextAlign.center,
-          style: BizBiteTheme.receiptMono(size: 14, weight: FontWeight.w800),
-        ),
-        if (store.address.isNotEmpty)
-          Text(
-            store.address,
-            textAlign: TextAlign.center,
-            style: BizBiteTheme.receiptMono(size: 12),
-          ),
-        if (store.phone.isNotEmpty)
-          Text(
-            'Ph: ${store.phone}',
-            textAlign: TextAlign.center,
-            style: BizBiteTheme.receiptMono(size: 12),
-          ),
-        _rule(),
-        // --- Bill meta: `Bill: <n>` + date on one row, cashier below -------
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Bill: ${receipt.orderNumber}',
-                style: BizBiteTheme.receiptMono(
-                  size: 12,
-                  weight: FontWeight.w600,
-                ),
-              ),
+  Widget _footer() {
+    Widget action(IconData icon, String label, VoidCallback? onTap, {Color? color}) {
+      return Expanded(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            height: 62,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white24),
             ),
-            Text(
-              receipt.placedAt,
-              style: BizBiteTheme.receiptMono(
-                size: 12,
-                weight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        if (receipt.cashier.isNotEmpty)
-          Text(
-            'Cashier: ${receipt.cashier}',
-            style: BizBiteTheme.receiptMono(size: 12, weight: FontWeight.w600),
-          ),
-        _rule(),
-        // --- Items: `<qty> x <name>` … `<subtotal>` (web shape) -------------
-        Text(
-          'QTY x ITEM                          AMOUNT',
-          style: BizBiteTheme.receiptMono(
-            size: 10.5,
-            weight: FontWeight.w800,
-            color: _inkMuted,
-          ),
-        ),
-        const SizedBox(height: 6),
-        for (final item in receipt.items)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 1),
-            child: Row(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Expanded(
-                  child: Text(
-                    '${item.quantity} x ${item.foodItemName}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: BizBiteTheme.receiptMono(
-                      size: 12,
-                      weight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  item.subtotal.toStringAsFixed(2),
-                  style: BizBiteTheme.receiptMono(
-                    size: 12,
-                    weight: FontWeight.w600,
-                  ),
-                ),
+                Icon(icon, color: color ?? Colors.white, size: 22),
+                const SizedBox(height: 4),
+                Text(label,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700)),
               ],
             ),
           ),
-        _rule(),
-        // --- Totals: TOTAL / Paid-via rows (web shape) -----------------------
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'TOTAL',
-                style: BizBiteTheme.receiptMono(
-                  size: 13,
-                  weight: FontWeight.w800,
-                ),
-              ),
-            ),
-            Text(
-              'Rs. ${receipt.totalAmount.toStringAsFixed(2)}',
-              style: BizBiteTheme.receiptMono(
-                size: 13,
-                weight: FontWeight.w800,
-              ),
-            ),
-          ],
         ),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Paid via',
-                style: BizBiteTheme.receiptMono(
-                  size: 12,
-                  weight: FontWeight.w600,
-                ),
-              ),
-            ),
-            Text(
-              receipt.paymentMode.label.toUpperCase(),
-              style: BizBiteTheme.receiptMono(
-                size: 12,
-                weight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        // --- Customer Wallet: 1% points debited for this bill --------------
-        if (receipt.walletDeduction != '0.00' && receipt.walletDeduction.isNotEmpty)
-          // Row(
-          //   children: [
-          //     Expanded(
-          //       child: Text(
-          //         'Wallet points used (1%)',
-          //         style: BizBiteTheme.receiptMono(
-          //           size: 12,
-          //           weight: FontWeight.w600,
-          //         ),
-          //       ),
-          //     ),
-          //     Text(
-          //       '-${receipt.walletDeduction} pts',
-          //       style: BizBiteTheme.receiptMono(
-          //         size: 12,
-          //         weight: FontWeight.w600,
-          //       ),
-          //     ),
-          //   ],
-          // ),
-        _rule(),
-        // --- Footer: Laravel owner template lines ---------------------------
-        if (store.printFooter.isNotEmpty)
-          Text(
-            store.printFooter,
-            textAlign: TextAlign.center,
-            style: BizBiteTheme.receiptMono(size: 12, weight: FontWeight.w600),
-          ),
-        const SizedBox(height: 2),
-        Text(
-          'Powered by BizBite',
-          textAlign: TextAlign.center,
-          style: BizBiteTheme.receiptMono(size: 11, color: _inkMuted),
-        ),
-      ],
-    );
-  }
+      );
+    }
 
-  /// 32-col 72mm rule — same `--------------------------------` separator the
-  /// Laravel `#thermal-paper` block prints between every section.
-  Widget _rule() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Text(
-        '--------------------------------',
-        maxLines: 1,
-        style: BizBiteTheme.receiptMono(size: 12, color: _ink),
-      ),
-    );
-  }
-
-  /// Bottom dock — Print lives here (below the paper), exactly like the
-  /// web preview's top `🖨 Print Bill` button: verify the Laravel template
-  /// on paper first, then send it to Bluetooth.
-  Widget _footer() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: FilledButton.tonalIcon(
-              onPressed: _printing ? null : _reprint,
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: _ink,
-                disabledBackgroundColor: Colors.white24,
-                minimumSize: const Size(0, 54),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
+          Row(
+            children: [
+              action(
+                Icons.print_rounded,
+                _printing ? 'Printing…' : 'Print bill',
+                _printing ? null : () => _print(kot: false),
               ),
-              icon: _printing
-                  ? SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.2,
-                        color: _ink,
-                      ),
-                    )
-                  : const Icon(Icons.bluetooth_rounded, size: 19),
-              label: const Text(
-                'Print Bill via Bluetooth',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+              const SizedBox(width: 10),
+              action(
+                Icons.soup_kitchen_rounded,
+                'Print KOT',
+                _printing ? null : () => _print(kot: true),
               ),
-            ),
+              const SizedBox(width: 10),
+              action(Icons.chat_rounded, 'WhatsApp', _whatsapp,
+                  color: AppColors.whatsapp),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            height: 54,
             child: FilledButton.icon(
-              onPressed: () => widget.orderFlow.clearReceipt(),
+              onPressed: _close,
               style: FilledButton.styleFrom(
                 backgroundColor: BizBiteTheme.brand,
-                minimumSize: const Size(0, 54),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
+                    borderRadius: BorderRadius.circular(16)),
               ),
-              icon: const Icon(Icons.add_rounded, size: 19),
-              label: const Text(
-                'New Order',
-                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800),
+              icon: Icon(
+                  widget.onClose != null ? Icons.arrow_back_rounded : Icons.add_rounded,
+                  size: 20),
+              label: Text(
+                widget.onClose != null ? 'Back' : 'New order',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Renders [ReceiptLine]s in monospace exactly as the printer lays them out.
+class ReceiptLinesView extends StatelessWidget {
+  const ReceiptLinesView({super.key, required this.lines, this.fontSize = 11});
+
+  final List<ReceiptLine> lines;
+  final double fontSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final line in lines)
+          Text(
+            line.text,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.clip,
+            textAlign: switch (line.align) {
+              LineAlign.center => TextAlign.center,
+              LineAlign.right => TextAlign.right,
+              LineAlign.left => TextAlign.left,
+            },
+            style: BizBiteTheme.receiptMono(
+              size: line.large ? fontSize * 1.6 : fontSize,
+              weight: line.bold || line.large ? FontWeight.w800 : FontWeight.w500,
+              color: AppColors.paperInk,
+              height: 1.3,
+            ),
+          ),
+      ],
     );
   }
 }

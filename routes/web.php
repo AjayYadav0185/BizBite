@@ -14,8 +14,10 @@ use Illuminate\Support\Facades\Route;
 // ---------------------------------------------------------------------------
 
 Route::get('/', function () {
+    // Guests see the product page (features + Android app download);
+    // signed-in staff go straight to their portal.
     if (! Auth::check()) {
-        return redirect()->route('login');
+        return view('welcome');
     }
 
     // Route each role to its home portal: owners land on the admin console,

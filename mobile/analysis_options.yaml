@@ -16,6 +16,9 @@ analyzer:
     # its style lints (SCREAMING_CAPS constants, unnecessary_const, etc.)
     # come from upstream and must stay diff-able against the original.
     - third_party/**
+    - build/**
+    - android/**
+    - ios/**
 
 linter:
   # The lint rules applied to this project can be customized in the

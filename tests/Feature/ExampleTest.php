@@ -14,7 +14,9 @@ class ExampleTest extends TestCase
     {
         $response = $this->get('/');
 
-        // Guests are redirected to the login screen by design.
-        $response->assertRedirect('/login');
+        // Guests get the landing page with sign-in and the app download.
+        $response->assertOk()
+            ->assertSee('BizBite POS')
+            ->assertSee(route('login'), false);
     }
 }

@@ -22,6 +22,7 @@ import 'screens/console_screen.dart';
 import 'screens/orders_screen.dart';
 import 'screens/pos_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/receipt_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/shifts_screen.dart';
 import 'screens/wallet_screen.dart';
@@ -101,7 +102,8 @@ class _HomeScreenState extends State<HomeScreen> {
   /// printer without leaving the billing grid. Fails soft via snackbar —
   /// the till never blocks on printer reachability.
   Future<void> _autoPrint(OrderReceiptModel receipt) async {
-    final ok = await widget.printer.printReceipt(receipt);
+    final ok = await widget.printer.printReceipt(receipt,
+        columns: widget.printSettings.columns);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -119,6 +121,22 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Reprint flow: fetch the saved bill and show it with Print / KOT /
+  /// WhatsApp; "Back" returns to the order list.
+  Future<void> _openReprint(int orderId) async {
+    final receipt = await widget.checkout.receiptFor(orderId);
+    if (!mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (routeContext) => ReceiptScreen(
+        receipt: receipt,
+        session: widget.session,
+        printer: widget.printer,
+        printSettings: widget.printSettings,
+        onClose: () => Navigator.of(routeContext).pop(),
+      ),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final storeName = widget.session.store?.name ?? 'BizBite';
@@ -129,9 +147,18 @@ class _HomeScreenState extends State<HomeScreen> {
       cart: widget.cart,
       checkout: widget.checkout,
       wallet: widget.wallet,
+      loadCampaigns: () async {
+        await widget.console.load();
+        return widget.console.campaigns;
+      },
       onSettled: (OrderReceiptModel receipt) {
         // The 1% wallet debit happened server-side — refresh the dashboard.
         widget.wallet.refresh();
+        if (widget.printSettings.autoPrintKot) {
+          // Kitchen ticket goes out first so cooking starts immediately.
+          unawaited(widget.printer.printKot(receipt,
+              columns: widget.printSettings.columns));
+        }
         if (widget.printSettings.previewBeforePrint) {
           // Preview ON: route to the receipt screen (preview + Print Bill).
           widget.orderFlow.showReceipt(receipt);
@@ -395,6 +422,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             builder: (_) => OrderQueueScreen(
                               controller: widget.queue,
                               sync: widget.sync,
+                              onReprint: _openReprint,
                             ),
                           ),
                         );

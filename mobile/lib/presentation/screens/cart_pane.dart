@@ -1,72 +1,130 @@
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
+import '../../core/utils/india.dart';
 import '../../features/orders/cart_controller.dart';
 import '../../features/orders/data/models/cart_line.dart';
 import '../../features/orders/data/models/order_models.dart';
+import '../../features/orders/data/models/store_model.dart';
 import '../../features/wallet/wallet_controller.dart';
 import '../theme/bizbite_theme.dart';
 import '../widgets/amount.dart';
 import '../widgets/status_banner.dart';
 
-/// Screen 2 — Cart & Billing Summary (the "bill" half of the POS).
+/// Text controllers for the bill form, owned by [PosScreen] so typed
+/// values survive the cart pane being rebuilt / reopened as a sheet.
+class CartFields {
+  TextEditingController discount = TextEditingController();
+  TextEditingController customer = TextEditingController();
+  TextEditingController phone = TextEditingController();
+  TextEditingController upiRef = TextEditingController();
+  TextEditingController table = TextEditingController();
+  TextEditingController coupon = TextEditingController();
+  TextEditingController notes = TextEditingController();
+  TextEditingController tendered = TextEditingController();
+  TextEditingController delivery = TextEditingController();
+
+  List<TextEditingController> get all =>
+      [discount, customer, phone, upiRef, table, coupon, notes, tendered, delivery];
+
+  /// Re-sync the fields from the cart (after Resume / settle / clear).
+  void loadFrom(CartController cart) {
+    void put(TextEditingController c, String v) {
+      if (c.text != v) c.text = v;
+    }
+
+    put(discount, cart.discountAmount > 0 ? cart.discountAmount.toStringAsFixed(0) : '');
+    put(customer, cart.customerName);
+    put(phone, cart.customerPhone);
+    put(upiRef, cart.upiRef);
+    put(table, cart.tableNumber);
+    put(coupon, cart.campaignCode);
+    put(notes, cart.notes);
+    put(tendered, cart.tenderedAmount > 0 ? cart.tenderedAmount.toStringAsFixed(0) : '');
+    put(delivery, cart.deliveryAddress);
+  }
+
+  void dispose() {
+    for (final c in all) {
+      c.dispose();
+    }
+  }
+}
+
+/// Screen 2 — the bill (side panel on tablets, bottom sheet on phones).
 ///
-/// Used two ways by [PosScreen]:
-///  * side-sheet panel on tablets / landscape (≥ 840dp),
-///  * inside a draggable bottom sheet on phones (opened from the bill bar).
-///
-/// Structure: fixed header (item count + clear) → scrollable line list with
-/// quantity steppers and per-line kitchen notes → payment chips + optional
-/// customer/discount details → FIXED bottom billing summary with the
-/// high-contrast "Process & Print Receipt" action.
-///
-/// Reactive: rendered inside `ListenableBuilder(listenable: cartController)`,
-/// so every quantity bump, payment switch and discount edit re-renders
-/// immediately.
+/// Order type → customer / table → lines with steppers + kitchen notes →
+/// coupon, discount & note → payment (cash quick-notes + change, UPI QR,
+/// split legs) → fixed footer with the rounded payable and Settle / Hold.
 class CartPane extends StatelessWidget {
   const CartPane({
     super.key,
     required this.cart,
+    required this.fields,
     required this.error,
     required this.settling,
-    required this.discountController,
-    required this.customerController,
-    required this.phoneController,
-    required this.upiRefController,
-    required this.onDiscountChanged,
-    required this.onCustomerChanged,
-    required this.onPhoneChanged,
-    required this.onUpiRefChanged,
     required this.onSettle,
+    this.onHold,
+    this.store,
     this.wallet,
   });
 
   final CartController cart;
+  final CartFields fields;
   final String error;
   final bool settling;
-
-  /// Customer Wallet — when provided, the bill summary highlights the 1%
-  /// points deduction ("Wallet Discount Applied (1%)") exactly as the
-  /// server will debit it on settlement.
-  final WalletController? wallet;
-  final TextEditingController discountController;
-  final TextEditingController customerController;
-  final TextEditingController phoneController;
-  final TextEditingController upiRefController;
-  final void Function(String value)? onDiscountChanged;
-  final void Function(String value)? onCustomerChanged;
-  final void Function(String value)? onPhoneChanged;
-  final void Function(String value)? onUpiRefChanged;
   final VoidCallback? onSettle;
+  final VoidCallback? onHold;
+
+  /// Store profile — UPI ID for the QR, GST flag for the "incl. GST" hint.
+  final StoreModel? store;
+  final WalletController? wallet;
+
+  static const _label = TextStyle(
+      fontSize: 11.5,
+      fontWeight: FontWeight.w800,
+      letterSpacing: 0.8,
+      color: AppColors.muted);
 
   @override
   Widget build(BuildContext context) {
     final hasItems = !cart.isEmpty;
-
     return Column(
       children: [
         _header(context, hasItems),
         StatusBanner(text: error, error: true),
-        Expanded(child: hasItems ? _billBody(context) : _emptyState(context)),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            children: [
+              _orderTypeSelector(),
+              const SizedBox(height: 10),
+              _customerRow(),
+              if (cart.orderType == OrderType.dineIn) ...[
+                const SizedBox(height: 8),
+                _field(fields.table, 'Table no. *', Icons.table_bar_rounded,
+                    cart.setTableNumber),
+              ],
+              if (cart.orderType == OrderType.delivery) ...[
+                const SizedBox(height: 8),
+                _field(fields.delivery, 'Delivery address', Icons.place_outlined,
+                    cart.setDeliveryAddress),
+              ],
+              const SizedBox(height: 14),
+              if (hasItems)
+                for (final line in cart.lines) _lineTile(context, line)
+              else
+                _emptyState(context),
+              if (hasItems) ...[
+                _extras(context),
+                const SizedBox(height: 4),
+                _paymentSection(context),
+                const SizedBox(height: 10),
+                _totalsRows(),
+              ],
+            ],
+          ),
+        ),
         _billingFooter(context, hasItems),
       ],
     );
@@ -75,9 +133,6 @@ class CartPane extends StatelessWidget {
   // --- Header ---------------------------------------------------------------
 
   Widget _header(BuildContext context, bool hasItems) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
       child: Row(
@@ -86,38 +141,58 @@ class CartPane extends StatelessWidget {
             width: 34,
             height: 34,
             decoration: BoxDecoration(
-              color: BizBiteTheme.brandSoft,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(Icons.receipt_long_rounded,
-                size: 19, color: BizBiteTheme.brandDeep),
+                color: BizBiteTheme.brandSoft,
+                borderRadius: BorderRadius.circular(10)),
+            child: const Icon(Icons.receipt_long_rounded,
+                size: 19, color: BizBiteTheme.brand),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Current Bill',
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w800)),
+                const Text('Current bill',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
                 Text(
-                  hasItems
-                      ? '${cart.totalQuantity} item(s) · ${cart.lines.length} line(s)'
-                      : 'Nothing added yet',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: scheme.onSurfaceVariant),
+                  hasItems ? '${cart.totalQuantity} item(s)' : 'Nothing added yet',
+                  style: const TextStyle(fontSize: 12, color: AppColors.muted),
                 ),
               ],
             ),
           ),
+          if (hasItems && onHold != null)
+            TextButton.icon(
+              onPressed: onHold,
+              icon: const Icon(Icons.pause_circle_outline_rounded, size: 18),
+              label: const Text('Hold'),
+              style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10)),
+            ),
           if (hasItems)
             TextButton(
-              onPressed: () => cart.clear(),
+              onPressed: () async {
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (c) => AlertDialog(
+                    title: const Text('Clear this bill?'),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(c, false),
+                          child: const Text('Keep')),
+                      FilledButton(
+                          onPressed: () => Navigator.pop(c, true),
+                          child: const Text('Clear')),
+                    ],
+                  ),
+                );
+                if (ok == true) {
+                  cart.clear();
+                  fields.loadFrom(cart);
+                }
+              },
               style: TextButton.styleFrom(
-                foregroundColor: scheme.error,
-                textStyle:
-                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-              ),
+                  foregroundColor: AppColors.error,
+                  padding: const EdgeInsets.symmetric(horizontal: 10)),
               child: const Text('Clear'),
             ),
         ],
@@ -125,50 +200,82 @@ class CartPane extends StatelessWidget {
     );
   }
 
-  // --- Body -----------------------------------------------------------------
+  Widget _orderTypeSelector() {
+    return SizedBox(
+      width: double.infinity,
+      child: SegmentedButton<OrderType>(
+        showSelectedIcon: false,
+        segments: [
+          for (final t in OrderType.values)
+            ButtonSegment(value: t, label: Text(t.label, maxLines: 1)),
+        ],
+        selected: {cart.orderType},
+        onSelectionChanged: (v) => cart.setOrderType(v.first),
+      ),
+    );
+  }
 
-  Widget _billBody(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+  Widget _field(TextEditingController c, String label, IconData icon,
+      ValueChanged<String> onChanged,
+      {TextInputType? keyboard, bool caps = false}) {
+    return TextField(
+      controller: c,
+      onChanged: onChanged,
+      keyboardType: keyboard,
+      textCapitalization: caps ? TextCapitalization.characters : TextCapitalization.words,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, size: 20),
+        isDense: true,
+      ),
+    );
+  }
+
+  Widget _customerRow() {
+    final phone = cart.customerPhone.trim();
+    final phoneBad = phone.isNotEmpty && India.normaliseMobile(phone) == null;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final line in cart.lines) _lineTile(context, line),
-        const SizedBox(height: 8),
-        _paymentSection(context),
-        _customerSection(context),
-        const SizedBox(height: 4),
-        _totalsRows(context),
+        Expanded(
+          child: _field(fields.customer, 'Customer', Icons.person_outline_rounded,
+              cart.setCustomerName),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: TextField(
+            controller: fields.phone,
+            onChanged: cart.setCustomerPhone,
+            keyboardType: TextInputType.phone,
+            maxLength: 14,
+            decoration: InputDecoration(
+              labelText: 'Mobile',
+              counterText: '',
+              isDense: true,
+              prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+              errorText: phoneBad ? '10-digit mobile' : null,
+            ),
+          ),
+        ),
       ],
     );
   }
 
   Widget _emptyState(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-
-    return Center(
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 36),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.room_service_rounded, size: 44, color: scheme.outline),
-          const SizedBox(height: 10),
-          Text('Add items to start the bill',
-              style: theme.textTheme.bodyLarge
-                  ?.copyWith(color: scheme.onSurfaceVariant)),
-          const SizedBox(height: 4),
-          Text('Tap any item on the menu grid',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: scheme.outline)),
+          Icon(Icons.room_service_rounded, size: 44, color: AppColors.borderMuted),
+          SizedBox(height: 10),
+          Text('Tap items to start the bill',
+              style: TextStyle(fontSize: 15, color: AppColors.muted)),
         ],
       ),
     );
   }
 
-  /// One bill line: name + unit price, quantity stepper, line total and an
-  /// "Add note" affordance for kitchen instructions.
   Widget _lineTile(BuildContext context, CartLine line) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Column(
@@ -179,32 +286,23 @@ class CartPane extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      line.foodItem.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w700),
-                    ),
-                    Text(
-                      '${inr(line.foodItem.price)} each',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: scheme.onSurfaceVariant),
-                    ),
+                    Text(line.foodItem.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                    Text('${inr(line.foodItem.price)} each',
+                        style: const TextStyle(fontSize: 12, color: AppColors.muted)),
                   ],
                 ),
               ),
-              _stepper(context, line),
+              _stepper(line),
               const SizedBox(width: 10),
               SizedBox(
                 width: 76,
-                child: Text(
-                  inr(line.lineTotal),
-                  textAlign: TextAlign.end,
-                  style: const TextStyle(
-                          fontSize: 14.5, fontWeight: FontWeight.w800)
-                      .merge(BizBiteTheme.numeral),
-                ),
+                child: Text(inr(line.lineTotal),
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800)
+                        .merge(BizBiteTheme.numeral)),
               ),
             ],
           ),
@@ -214,90 +312,55 @@ class CartPane extends StatelessWidget {
     );
   }
 
-  /// 32dp quantity stepper — "−" removes, "+" adds; hitting 0 drops the line
-  /// (CartController semantics).
-  Widget _stepper(BuildContext context, CartLine line) {
+  Widget _stepper(CartLine line) {
+    Widget btn(IconData icon, VoidCallback onTap, Color color, bool left) => InkWell(
+          borderRadius: BorderRadius.horizontal(
+              left: Radius.circular(left ? 18 : 0), right: Radius.circular(left ? 0 : 18)),
+          onTap: onTap,
+          child: SizedBox(width: 36, height: 36, child: Icon(icon, size: 18, color: color)),
+        );
     return Container(
-      height: 32,
-      decoration: ShapeDecoration(
-        shape: StadiumBorder(
-            side: const BorderSide(color: BizBiteTheme.hairline)),
-        color: Colors.white,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InkWell(
-            borderRadius:
-                const BorderRadius.horizontal(left: Radius.circular(16)),
-            onTap: () =>
-                cart.setQuantity(line.foodItem.id, line.quantity - 1),
-            child: const SizedBox(
-              width: 32,
-              height: 32,
-              child: Icon(Icons.remove_rounded,
-                  size: 16, color: BizBiteTheme.inkMuted),
-            ),
-          ),
-          SizedBox(
-            width: 26,
-            child: Text(
-              '${line.quantity}',
+      height: 36,
+      decoration: const ShapeDecoration(
+          shape: StadiumBorder(side: BorderSide(color: BizBiteTheme.hairline)),
+          color: Colors.white),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        btn(Icons.remove_rounded, () => cart.setQuantity(line.foodItem.id, line.quantity - 1),
+            AppColors.muted, true),
+        SizedBox(
+          width: 26,
+          child: Text('${line.quantity}',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                      fontSize: 13.5, fontWeight: FontWeight.w800)
-                  .merge(BizBiteTheme.numeral),
-            ),
-          ),
-          InkWell(
-            borderRadius:
-                const BorderRadius.horizontal(right: Radius.circular(16)),
-            onTap: () =>
-                cart.setQuantity(line.foodItem.id, line.quantity + 1),
-            child: const SizedBox(
-              width: 32,
-              height: 32,
-              child: Icon(Icons.add_rounded,
-                  size: 16, color: BizBiteTheme.brandDeep),
-            ),
-          ),
-        ],
-      ),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)
+                  .merge(BizBiteTheme.numeral)),
+        ),
+        btn(Icons.add_rounded, () => cart.setQuantity(line.foodItem.id, line.quantity + 1),
+            BizBiteTheme.brand, false),
+      ]),
     );
   }
 
   Widget _noteRow(BuildContext context, CartLine line) {
     final hasNote = line.note.isNotEmpty;
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-
     return InkWell(
       onTap: () => _editNote(context, line),
       borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.only(top: 6),
-        child: Row(
-          children: [
-            Icon(
-              Icons.edit_note_rounded,
-              size: 17,
-              color: hasNote ? BizBiteTheme.brand : scheme.outline,
-            ),
-            const SizedBox(width: 5),
-            Expanded(
-              child: Text(
-                hasNote ? line.note : 'Add note',
+        padding: const EdgeInsets.only(top: 4),
+        child: Row(children: [
+          Icon(Icons.edit_note_rounded,
+              size: 17, color: hasNote ? BizBiteTheme.brand : AppColors.faintMuted),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Text(hasNote ? line.note : 'Add kitchen note',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: hasNote ? FontWeight.w600 : FontWeight.w500,
-                  color: hasNote ? BizBiteTheme.brandDeep : scheme.outline,
-                ),
-              ),
-            ),
-          ],
-        ),
+                    fontSize: 12,
+                    fontWeight: hasNote ? FontWeight.w600 : FontWeight.w500,
+                    color: hasNote ? BizBiteTheme.brandDeep : AppColors.faintMuted)),
+          ),
+        ]),
       ),
     );
   }
@@ -313,18 +376,13 @@ class CartPane extends StatelessWidget {
           controller: controller,
           autofocus: true,
           maxLines: 2,
-          decoration:
-              const InputDecoration(hintText: 'e.g. No onion, extra spicy'),
+          decoration: const InputDecoration(hintText: 'e.g. less spicy, no onion'),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Save'),
-          ),
+              onPressed: () => Navigator.pop(context, controller.text),
+              child: const Text('Save')),
         ],
       ),
     );
@@ -332,293 +390,384 @@ class CartPane extends StatelessWidget {
     if (note != null) cart.setNote(line.foodItem.id, note);
   }
 
-  /// Payment mode chips + the UPI reference field when UPI is selected.
-  Widget _paymentSection(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'PAYMENT',
-          style: theme.textTheme.labelMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-            color: scheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final mode in PaymentMode.values)
-              ChoiceChip(
-                label: Text(mode.label),
-                selected: cart.paymentMode == mode,
-                onSelected: (_) => cart.setPaymentMode(mode),
-                showCheckmark: false,
-                labelStyle: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: cart.paymentMode == mode
-                      ? BizBiteTheme.brandDeep
-                      : scheme.onSurfaceVariant,
-                ),
-                selectedColor: BizBiteTheme.brandSoft,
-                backgroundColor: Colors.white,
-                side: const BorderSide(color: BizBiteTheme.hairline),
-              ),
-          ],
-        ),
-        if (cart.paymentMode == PaymentMode.upi) ...[
-          const SizedBox(height: 10),
-          TextField(
-            controller: upiRefController,
-            onChanged: onUpiRefChanged,
-            decoration: const InputDecoration(
-              labelText: 'UPI transaction ref',
-              prefixIcon: Icon(Icons.qr_code_rounded),
-            ),
-          ),
-        ],
-        const SizedBox(height: 6),
-      ],
-    );
-  }
-
-  /// Optional customer & discount fields, collapsed by default to keep the
-  /// bill scannable during rush hours.
-  Widget _customerSection(BuildContext context) {
+  /// Coupon, discount and bill note — collapsed to keep rush hours fast.
+  Widget _extras(BuildContext context) {
+    final valid = cart.campaignValid;
+    final open = cart.campaignCode.isNotEmpty ||
+        cart.discountAmount > 0 ||
+        cart.notes.isNotEmpty;
     return Theme(
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
       child: ExpansionTile(
+        initiallyExpanded: open,
         tilePadding: EdgeInsets.zero,
-        childrenPadding: const EdgeInsets.only(bottom: 10),
-        title: const Text(
-          'Customer & discount (optional)',
-          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
-        ),
+        childrenPadding: const EdgeInsets.only(bottom: 8),
+        title: const Text('Coupon, discount & note',
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: BizBiteTheme.brand)),
         children: [
-          TextField(
-            controller: discountController,
-            onChanged: onDiscountChanged,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Discount (₹)',
-              prefixIcon: Icon(Icons.currency_rupee_rounded),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+              child: TextField(
+                controller: fields.coupon,
+                onChanged: cart.setCampaignCode,
+                textCapitalization: TextCapitalization.characters,
+                decoration: InputDecoration(
+                  labelText: 'Coupon code',
+                  isDense: true,
+                  prefixIcon: const Icon(Icons.local_offer_outlined, size: 20),
+                  errorText: valid == false ? 'Not valid for this bill' : null,
+                  helperText: valid == true
+                      ? '−${inr(cart.campaignDiscount)} applied'
+                      : null,
+                  helperStyle: const TextStyle(color: AppColors.success, fontWeight: FontWeight.w700),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: customerController,
-            onChanged: onCustomerChanged,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(
-              labelText: 'Customer name',
-              prefixIcon: Icon(Icons.person_outline_rounded),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _field(fields.discount, 'Discount ₹', Icons.currency_rupee_rounded,
+                  (v) => cart.setDiscountAmount(double.tryParse(v.trim()) ?? 0),
+                  keyboard: const TextInputType.numberWithOptions(decimal: true)),
             ),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: phoneController,
-            onChanged: onPhoneChanged,
-            keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(
-              labelText: 'Customer phone',
-              prefixIcon: Icon(Icons.phone_outlined),
-            ),
-          ),
+          ]),
+          const SizedBox(height: 8),
+          _field(fields.notes, 'Bill / kitchen note', Icons.sticky_note_2_outlined, cart.setNotes),
         ],
       ),
     );
   }
 
-  /// Subtotal / discount / (tax, once the backend exposes it) rows above the
-  /// fixed grand-total footer.
-  Widget _totalsRows(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-
-    Widget row(String label, String value, {Color? color}) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
+  Widget _paymentSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('PAYMENT', style: _label),
+        const SizedBox(height: 8),
+        Row(
           children: [
+            for (final mode in PaymentMode.values) ...[
+              Expanded(
+                child: _modeButton(mode),
+              ),
+              if (mode != PaymentMode.values.last) const SizedBox(width: 6),
+            ],
+          ],
+        ),
+        const SizedBox(height: 10),
+        switch (cart.paymentMode) {
+          PaymentMode.cash => _cashSection(),
+          PaymentMode.upi => _upiSection(),
+          PaymentMode.split => _splitSection(context),
+          PaymentMode.credit => _hint(
+              'Pay-later bill — customer name or mobile is required.',
+              AppColors.warningBg,
+              AppColors.warningDeep),
+          PaymentMode.card => const SizedBox.shrink(),
+        },
+      ],
+    );
+  }
+
+  Widget _modeButton(PaymentMode mode) {
+    final selected = cart.paymentMode == mode;
+    return Material(
+      color: selected ? BizBiteTheme.brand : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: selected ? BizBiteTheme.brand : BizBiteTheme.hairline),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => cart.setPaymentMode(mode),
+        child: SizedBox(
+          height: 40,
+          child: Center(
+            child: Text(mode.label,
+                style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? Colors.white : AppColors.slate600)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _hint(String text, Color bg, Color fg) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+        child: Text(text, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: fg)),
+      );
+
+  /// Cash received + quick-note buttons (exact, next ₹100, next ₹500) and
+  /// the change to return.
+  Widget _cashSection() {
+    final p = cart.payable;
+    final notes = <double>{
+      p,
+      (p / 100).ceil() * 100.0,
+      (p / 500).ceil() * 500.0,
+    }.where((n) => n > 0).toList()
+      ..sort();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(children: [
+          Expanded(
+            child: _field(fields.tendered, 'Cash received', Icons.payments_outlined,
+                (v) => cart.setTendered(double.tryParse(v.trim()) ?? 0),
+                keyboard: const TextInputType.numberWithOptions(decimal: true)),
+          ),
+          for (final n in notes) ...[
+            const SizedBox(width: 6),
+            ActionChip(
+              label: Text('₹${n.toStringAsFixed(0)}'),
+              onPressed: () {
+                cart.setTendered(n);
+                fields.tendered.text = n.toStringAsFixed(0);
+              },
+            ),
+          ],
+        ]),
+        if (cart.changeDue > 0) ...[
+          const SizedBox(height: 8),
+          _hint('Return change  ${inr(cart.changeDue)}', AppColors.successBg, AppColors.successDeep),
+        ],
+      ],
+    );
+  }
+
+  /// Dynamic UPI QR with the exact payable — customer scans with any app.
+  Widget _upiSection() {
+    final vpa = store?.upiVpa ?? '';
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: BizBiteTheme.hairline),
+      ),
+      child: vpa.isEmpty || cart.payable <= 0
+          ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              const Text(
+                'Add your UPI ID in Profile → Manage shop to show a payment QR here.',
+                style: TextStyle(fontSize: 12.5, color: AppColors.muted),
+              ),
+              const SizedBox(height: 8),
+              _field(fields.upiRef, 'UPI ref / UTR (optional)', Icons.tag_rounded, cart.setUpiRef),
+            ])
+          : Row(children: [
+              Container(
+                color: Colors.white,
+                child: QrImageView(
+                  key: const ValueKey('upi-qr'),
+                  data: India.upiLink(
+                    vpa: vpa,
+                    payeeName: store?.name ?? 'BizBite',
+                    amount: cart.payable,
+                    note: 'BizBite bill',
+                  ),
+                  size: 132,
+                  padding: const EdgeInsets.all(4),
+                  backgroundColor: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Scan with any UPI app',
+                        style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                    Text(inr(cart.payable),
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)
+                            .merge(BizBiteTheme.numeral)),
+                    Text(vpa,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: fields.upiRef,
+                      onChanged: cart.setUpiRef,
+                      decoration: const InputDecoration(
+                          hintText: 'UTR (optional)', isDense: true),
+                    ),
+                  ],
+                ),
+              ),
+            ]),
+    );
+  }
+
+  Widget _splitSection(BuildContext context) {
+    final remaining = cart.splitRemaining;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderMuted),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < cart.splitLegs.length; i++)
+            Row(children: [
+              Text(cart.splitLegs[i]['mode']!.toUpperCase(),
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              const Spacer(),
+              Text(inr(double.tryParse(cart.splitLegs[i]['amount']!) ?? 0),
+                  style: BizBiteTheme.numeral),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.close_rounded, size: 18),
+                onPressed: () => cart.removeSplitLeg(i),
+              ),
+            ]),
+          Text(
+            remaining == 0
+                ? 'Fully covered ✓'
+                : 'Remaining ${inr(remaining)} — tap a mode to add it',
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: remaining == 0 ? AppColors.success : AppColors.muted),
+          ),
+          if (remaining > 0) ...[
+            const SizedBox(height: 6),
+            Wrap(spacing: 6, children: [
+              for (final mode in [PaymentMode.cash, PaymentMode.upi, PaymentMode.card, PaymentMode.credit])
+                ActionChip(
+                  label: Text('+ ${mode.label}'),
+                  onPressed: () => _addSplit(context, mode, remaining),
+                ),
+            ]),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _addSplit(BuildContext context, PaymentMode mode, double remaining) async {
+    final controller = TextEditingController(text: remaining.toStringAsFixed(2));
+    final value = await showDialog<double>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text('${mode.label} amount'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(prefixText: '₹ '),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, double.tryParse(controller.text.trim())),
+              child: const Text('Add')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value != null && value > 0) cart.addSplitLeg(mode, value);
+  }
+
+  Widget _totalsRows() {
+    Widget row(String label, String value, {Color? color, bool small = false}) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(children: [
             Expanded(
               child: Text(label,
                   style: TextStyle(
-                      fontSize: 14,
+                      fontSize: small ? 12 : 14,
                       fontWeight: FontWeight.w600,
-                      color: color ?? scheme.onSurfaceVariant)),
+                      color: color ?? AppColors.muted)),
             ),
-            Text(
-              value,
-              style: TextStyle(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w800,
-                      color: color ?? scheme.onSurface)
-                  .merge(BizBiteTheme.numeral),
-            ),
-          ],
-        ),
-      );
-    }
+            Text(value,
+                style: TextStyle(
+                        fontSize: small ? 12.5 : 14.5,
+                        fontWeight: FontWeight.w800,
+                        color: color ?? AppColors.ink)
+                    .merge(BizBiteTheme.numeral)),
+          ]),
+        );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         row('Subtotal', inr(cart.subtotal)),
         if (cart.effectiveDiscount > 0)
-          row('Discount', '-${inr(cart.effectiveDiscount)}',
-              color: BizBiteTheme.success),
-        // Customer Wallet — highlight the 1% points deduction exactly as
-        // the server will debit it (capped at the available balance).
-        if (wallet != null && cart.payable > 0)
-          _walletRow(context, cart.payable),
-        // NOTE: Tax rows render here automatically once the backend returns
-        // tax breakdown fields on POST /api/orders (hooks reserved in
-        // POS_UI_DESIGN_SPEC.md).
+          row('Discount', '−${inr(cart.effectiveDiscount)}', color: AppColors.warningDeep),
+        if (cart.campaignDiscount > 0)
+          row('Coupon ${cart.campaignCode}', '−${inr(cart.campaignDiscount)}',
+              color: AppColors.warningDeep),
+        if (cart.roundOff != 0)
+          row('Round off', cart.roundOff.toStringAsFixed(2), small: true),
+        if (store?.gstEnabled == true)
+          const Text('Prices include GST', style: TextStyle(fontSize: 11.5, color: AppColors.faintMuted)),
+        if (wallet != null && cart.payable > 0) _walletRow(cart.payable),
       ],
     );
   }
 
-  /// "Wallet Discount Applied (1%)" — points that will be debited for this
-  /// bill, plus the balance remaining afterwards. Rendered only when a
-  /// wallet is wired in (POS billing).
-  Widget _walletRow(BuildContext context, double payable) {
+  Widget _walletRow(double payable) {
     final deduction = wallet!.deductionPreviewFor(payable);
     if (deduction <= 0) return const SizedBox.shrink();
-
-    final after = wallet!.balance - deduction;
-
-    return Container(
-      margin: const EdgeInsets.only(top: 6, bottom: 2),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.infoBg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: BizBiteTheme.brand.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.account_balance_wallet_rounded,
-              size: 15, color: BizBiteTheme.brand),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Wallet Discount Applied (1%)',
-                  style: const TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
-                    color: BizBiteTheme.brandDeep,
-                  ),
-                ),
-                Text(
-                  'Deducts ${deduction.toStringAsFixed(2)} pts · balance after ${after.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AppColors.muted,
-                  ).merge(BizBiteTheme.numeral),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            '-${deduction.toStringAsFixed(2)} pts',
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: BizBiteTheme.brandDeep,
-            ).merge(BizBiteTheme.numeral),
-          ),
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(children: [
+        const Icon(Icons.account_balance_wallet_rounded, size: 14, color: BizBiteTheme.brand),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text('Wallet: −${deduction.toStringAsFixed(2)} pts (1%)',
+              style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
+        ),
+      ]),
     );
   }
 
-  /// Fixed bottom billing summary — grand total in large bold numerals plus
-  /// the high-contrast "Process & Print Receipt" action (56dp tall).
   Widget _billingFooter(BuildContext context, bool hasItems) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(top: BorderSide(color: BizBiteTheme.hairline)),
       ),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'GRAND TOTAL',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.1,
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      inr(cart.payable),
-                      style: const TextStyle(
-                              fontSize: 25,
-                              fontWeight: FontWeight.w800,
-                              height: 1.05)
-                          .merge(BizBiteTheme.numeral),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.verified_rounded,
-                size: 20,
-                color: hasItems ? BizBiteTheme.success : scheme.outline,
-              ),
-            ],
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      child: SizedBox(
+        width: double.infinity,
+        height: 58,
+        child: FilledButton(
+          onPressed: settling || !hasItems ? null : onSettle,
+          style: FilledButton.styleFrom(
+            backgroundColor: BizBiteTheme.brand,
+            disabledBackgroundColor: BizBiteTheme.hairline,
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: FilledButton.icon(
-              onPressed: settling || !hasItems ? null : () => onSettle?.call(),
-              style: FilledButton.styleFrom(
-                backgroundColor: BizBiteTheme.brand,
-                disabledBackgroundColor: BizBiteTheme.hairline,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-              ),
-              icon: settling
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2.2, color: Colors.white),
-                    )
-                  : const Icon(Icons.print_rounded, size: 20),
-              label: Text(
-                settling ? 'Processing…' : 'Process & Print Receipt',
-                style: const TextStyle(
-                    fontSize: 15.5, fontWeight: FontWeight.w800),
-              ),
+          child: Row(children: [
+            settling
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
+                : const Icon(Icons.print_rounded, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(settling ? 'Saving…' : 'Settle & print',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(inr(cart.payable),
+                  style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800)
+                      .merge(BizBiteTheme.numeral)),
+            ),
+          ]),
+        ),
       ),
     );
   }

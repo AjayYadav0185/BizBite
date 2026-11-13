@@ -4,6 +4,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/utils/device_info.dart';
 import '../../features/auth/session_controller.dart';
 import '../../features/menu/menu_controller.dart';
+import '../../features/ops/data/models/console_models.dart';
 import '../../features/orders/cart_controller.dart';
 import '../../features/orders/data/models/order_models.dart';
 import '../../features/orders/order_checkout.dart';
@@ -14,9 +15,9 @@ import '../widgets/amount.dart';
 import 'cart_pane.dart';
 import 'menu_pane.dart';
 
-/// The Pay Desk billing screen — mirrors the Laravel `BillingDashboard`
-/// Livewire component (search + category filter + cart with quantity steppers
-/// + payment/order-type pickers + live totals) but backed by the Sanctum API.
+/// The Pay Desk billing screen — mirrors the Laravel `BillingDashboard`:
+/// menu grid + live bill (order type, table, customer, coupon, UPI QR,
+/// split tender), Hold / Resume and the counter checks the web enforces.
 class PosScreen extends StatefulWidget {
   const PosScreen({
     super.key,
@@ -25,6 +26,7 @@ class PosScreen extends StatefulWidget {
     required this.cart,
     required this.checkout,
     required this.wallet,
+    this.loadCampaigns,
     this.onSettled,
   });
 
@@ -32,12 +34,12 @@ class PosScreen extends StatefulWidget {
   final MenuController menu;
   final CartController cart;
   final OrderCheckout checkout;
-
-  /// Customer Wallet — used to preview the 1% bill deduction in the cart.
   final WalletController wallet;
 
-  /// Fired with the server receipt after a successful settlement. The app
-  /// router listens and swaps to the ReceiptScreen.
+  /// Live coupons for the on-screen discount preview (cached offline).
+  final Future<List<CampaignModel>> Function()? loadCampaigns;
+
+  /// Fired with the receipt after a successful settlement.
   final void Function(OrderReceiptModel receipt)? onSettled;
 
   @override
@@ -45,32 +47,44 @@ class PosScreen extends StatefulWidget {
 }
 
 class _PosScreenState extends State<PosScreen> {
-  /// Side-sheet cart panel kicks in on tablets / landscape.
   static const double _sidePanelBreakpoint = 840;
 
   final TextEditingController _search = TextEditingController();
-  TextEditingController _discount = TextEditingController();
-  TextEditingController _customer = TextEditingController();
-  TextEditingController _phone = TextEditingController();
-  TextEditingController _upiRef = TextEditingController();
+  final CartFields _fields = CartFields();
 
   int? _activeCategoryId;
   String _error = '';
   bool _settling = false;
   bool _billSheetOpen = false;
 
+  /// Idempotency key of the settlement in flight — kept across a timeout
+  /// retry so the server dedupes the bill on flaky outlet Wi-Fi.
+  String? _idempotencyKey;
+
   @override
   void initState() {
     super.initState();
-    // Paint the "Wallet Discount Applied (1%)" row with a real balance —
-    // without this the preview hides until the next settle-refresh.
     widget.wallet.load();
+    _fields.loadFrom(widget.cart);
+    _loadCampaigns();
   }
 
-  /// Idempotency key of the settlement currently (or last) in flight. Kept
-  /// across a network-timeout retry so the server dedupes the bill instead
-  /// of placing a second one on flaky outlet Wi-Fi.
-  String? _idempotencyKey;
+  Future<void> _loadCampaigns() async {
+    final loader = widget.loadCampaigns;
+    if (loader == null) return;
+    try {
+      widget.cart.setCampaigns(await loader());
+    } catch (_) {
+      // No coupons offline/forbidden → the server still validates codes.
+    }
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    _fields.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,34 +94,31 @@ class _PosScreenState extends State<PosScreen> {
       backgroundColor: scheme.surfaceContainerLow,
       body: LayoutBuilder(
         builder: (context, constraints) {
-          // Wide: split-screen POS — menu grid + fixed billing side-sheet.
           if (constraints.maxWidth >= _sidePanelBreakpoint) {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(child: _menu()),
                 Container(
-                  width: 380,
+                  width: 400,
                   margin: const EdgeInsets.all(12),
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: BizBiteTheme.hairline),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.06),
-                        blurRadius: 18,
-                        offset: const Offset(0, 6),
-                      ),
+                    boxShadow: AppShadows.card,
+                  ),
+                  child: Column(
+                    children: [
+                      _heldStrip(),
+                      Expanded(child: _cartPane()),
                     ],
                   ),
-                  child: _cartPane(),
                 ),
               ],
             );
           }
-          // Narrow: full-width grid + persistent dark bill bar.
           return Column(
             children: [
               Expanded(child: _menu()),
@@ -120,156 +131,143 @@ class _PosScreenState extends State<PosScreen> {
   }
 
   Widget _menu() {
-    // React to BOTH the menu controller and the cart controller — the item
-    // cards' "marked" state (brand border + qty badge) is computed from cart
-    // lines at build time, so the grid must rebuild on every cart change.
-    // Previously it only listened to `menu`, so after the first add the
-    // badges went stale (new items were billed but never marked).
     return ListenableBuilder(
       listenable: Listenable.merge([widget.menu, widget.cart]),
-      builder: (context, _) {
-        return MenuPane(
-          menu: widget.menu,
-          cart: widget.cart,
-          searchController: _search,
-          activeCategoryId: _activeCategoryId,
-          onSearchChanged: (value) {
-            setState(() {});
-          },
-          onCategoryTap: (categoryId) {
-            setState(() {
-              _activeCategoryId = categoryId;
-            });
-          },
-        );
-      },
+      builder: (context, _) => MenuPane(
+        menu: widget.menu,
+        cart: widget.cart,
+        searchController: _search,
+        activeCategoryId: _activeCategoryId,
+        onSearchChanged: (_) => setState(() {}),
+        onCategoryTap: (id) => setState(() => _activeCategoryId = id),
+      ),
     );
   }
 
-  Widget _cartPane() {
+  Widget _buildCartPane() => CartPane(
+        cart: widget.cart,
+        fields: _fields,
+        wallet: widget.wallet,
+        store: widget.session.store?.toReceiptStore(),
+        error: _error,
+        settling: _settling,
+        onSettle: _settle,
+        onHold: _hold,
+      );
+
+  Widget _cartPane() => ListenableBuilder(
+        listenable: widget.cart,
+        builder: (context, _) => _buildCartPane(),
+      );
+
+  /// "Held (n)" strip on top of the tablet bill panel.
+  Widget _heldStrip() {
     return ListenableBuilder(
       listenable: widget.cart,
       builder: (context, _) {
-        return CartPane(
-          cart: widget.cart,
-          wallet: widget.wallet,
-          error: _error,
-          settling: _settling,
-          discountController: _discount,
-          customerController: _customer,
-          phoneController: _phone,
-          upiRefController: _upiRef,
-          onDiscountChanged: (value) {
-            widget.cart
-                .setDiscountAmount(double.tryParse(value.trim()) ?? 0);
-          },
-          onCustomerChanged: widget.cart.setCustomerName,
-          onPhoneChanged: widget.cart.setCustomerPhone,
-          onUpiRefChanged: widget.cart.setUpiRef,
-          onSettle: _settle,
+        final n = widget.cart.held.length;
+        if (n == 0) return const SizedBox.shrink();
+        return Material(
+          color: AppColors.warningBg,
+          child: InkWell(
+            onTap: _openHeld,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(children: [
+                const Icon(Icons.pause_circle_rounded, size: 18, color: AppColors.warningDeep),
+                const SizedBox(width: 8),
+                Text('$n bill${n == 1 ? '' : 's'} on hold',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, color: AppColors.warningDeep)),
+                const Spacer(),
+                const Text('View', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.warningDeep)),
+              ]),
+            ),
+          ),
         );
       },
     );
   }
 
-  /// Narrow layout — persistent dark bill bar: live item count, order type,
-  /// grand total and the primary "Process & Print" action. Tapping the
-  /// summary opens the full bill as a bottom sheet.
+  /// Phone layout — dark bill bar: held badge, count, total, Settle.
   Widget _billBar(BuildContext context) {
     return ListenableBuilder(
       listenable: widget.cart,
       builder: (context, _) {
         final cart = widget.cart;
         final hasItems = !cart.isEmpty;
+        final heldCount = cart.held.length;
 
         return Container(
           margin: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-          padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
           decoration: BoxDecoration(
-            color: BizBiteTheme.inkDark,
+            color: AppColors.bgDark,
             borderRadius: BorderRadius.circular(18),
           ),
           child: Row(
             children: [
+              if (heldCount > 0)
+                Badge(
+                  label: Text('$heldCount'),
+                  backgroundColor: AppColors.warning,
+                  child: IconButton(
+                    tooltip: 'Bills on hold',
+                    onPressed: _openHeld,
+                    icon: const Icon(Icons.pause_circle_outline_rounded, color: Colors.white),
+                  ),
+                ),
               Expanded(
                 child: InkWell(
                   onTap: hasItems ? _openBillSheet : null,
                   borderRadius: BorderRadius.circular(12),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           hasItems
-                              ? '${cart.totalQuantity} item(s) on bill'
-                              : 'Bill is empty — tap items to add',
+                              ? '${cart.totalQuantity} item(s) · ${cart.orderType.label}'
+                              : 'Tap items to add',
                           style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: hasItems ? Colors.white : Colors.white54,
-                          ),
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: hasItems ? Colors.white70 : Colors.white54),
                         ),
-                        const SizedBox(height: 1),
                         Text(
                           inr(cart.payable),
                           style: TextStyle(
-                                  fontSize: 19,
+                                  fontSize: 20,
                                   fontWeight: FontWeight.w800,
-                                  color: hasItems
-                                      ? Colors.white
-                                      : Colors.white38)
+                                  color: hasItems ? Colors.white : Colors.white38)
                               .merge(BizBiteTheme.numeral),
                         ),
                         if (hasItems)
-                          Row(
-                            children: [
-                              const Icon(Icons.table_bar_rounded,
-                                  size: 12, color: BizBiteTheme.brand),
-                              const SizedBox(width: 4),
-                              Text(
-                                cart.orderType.label,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: BizBiteTheme.brand,
-                                ),
-                              ),
-                            ],
-                          ),
+                          const Text('View bill ›',
+                              style: TextStyle(
+                                  fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primaryLight)),
                       ],
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
               SizedBox(
-                height: 48,
+                height: 50,
                 child: FilledButton.icon(
-                  onPressed: _settling || !hasItems ? null : _settle,
+                  onPressed: _settling || !hasItems ? null : _openBillSheet,
                   style: FilledButton.styleFrom(
                     backgroundColor: BizBiteTheme.brand,
                     foregroundColor: Colors.white,
                     disabledBackgroundColor: Colors.white12,
                     disabledForegroundColor: Colors.white38,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  icon: _settling
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Icon(Icons.print_rounded, size: 18),
-                  label: Text(
-                    _settling ? 'Processing…' : 'Process & Print',
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w800),
-                  ),
+                  icon: const Icon(Icons.receipt_long_rounded, size: 18),
+                  label: const Text('Bill & pay',
+                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
                 ),
               ),
             ],
@@ -279,49 +277,104 @@ class _PosScreenState extends State<PosScreen> {
     );
   }
 
-  /// Full bill as a modal bottom sheet (narrow layout).
   void _openBillSheet() {
     if (_billSheetOpen) return;
     _billSheetOpen = true;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (sheetContext) {
-        return FractionallySizedBox(
-          heightFactor: 0.92,
-          child: ListenableBuilder(
-            listenable: widget.cart,
-            builder: (context, _) => CartPane(
-              cart: widget.cart,
-              wallet: widget.wallet,
-              error: _error,
-              settling: _settling,
-              discountController: _discount,
-              customerController: _customer,
-              phoneController: _phone,
-              upiRefController: _upiRef,
-              onDiscountChanged: (value) {
-                widget.cart
-                    .setDiscountAmount(double.tryParse(value.trim()) ?? 0);
-              },
-              onCustomerChanged: widget.cart.setCustomerName,
-              onPhoneChanged: widget.cart.setCustomerPhone,
-              onUpiRefChanged: widget.cart.setUpiRef,
-              onSettle: _settle,
-            ),
-          ),
-        );
-      },
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: 0.94,
+        child: ListenableBuilder(
+          listenable: widget.cart,
+          builder: (context, _) => _buildCartPane(),
+        ),
+      ),
     ).whenComplete(() => _billSheetOpen = false);
+  }
+
+  void _snack(String message, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      backgroundColor: error ? Theme.of(context).colorScheme.error : null,
+    ));
+  }
+
+  void _hold() {
+    final problem = widget.cart.hold();
+    if (problem != null) {
+      _snack(problem, error: true);
+      return;
+    }
+    _fields.loadFrom(widget.cart);
+    if (_billSheetOpen) Navigator.of(context, rootNavigator: true).pop();
+    _snack('Bill put on hold. Resume it from "Held".');
+  }
+
+  Future<void> _openHeld() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (sheet) => ListenableBuilder(
+        listenable: widget.cart,
+        builder: (context, _) {
+          final held = widget.cart.held;
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: Text('Bills on hold',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                ),
+                if (held.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Text('No bills on hold.', textAlign: TextAlign.center),
+                  ),
+                for (final bill in held)
+                  ListTile(
+                    leading: const Icon(Icons.receipt_rounded),
+                    title: Text(bill.label, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text(
+                        '${bill.count} items · held ${TimeOfDay.fromDateTime(bill.heldAt).format(context)}'),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text(inr(bill.total), style: BizBiteTheme.numeral),
+                      IconButton(
+                        tooltip: 'Discard',
+                        icon: const Icon(Icons.delete_outline_rounded, color: AppColors.error),
+                        onPressed: () => widget.cart.discardHeld(bill.id),
+                      ),
+                    ]),
+                    onTap: () {
+                      widget.cart.resume(bill.id);
+                      _fields.loadFrom(widget.cart);
+                      Navigator.of(sheet).pop();
+                      _snack('Resumed ${bill.label}.');
+                    },
+                  ),
+                const SizedBox(height: 12),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _settle() async {
     if (_settling || widget.cart.isEmpty) return;
 
-    // Fresh key per new settlement; the same key survives a timeout-retry.
-    _idempotencyKey ??= DeviceInfo.newIdempotencyKey();
+    final problem = widget.cart.validate();
+    if (problem != null) {
+      setState(() => _error = problem);
+      _snack(problem, error: true);
+      return;
+    }
 
-    if (!mounted) return;
+    _idempotencyKey ??= DeviceInfo.newIdempotencyKey();
     setState(() {
       _settling = true;
       _error = '';
@@ -333,56 +386,33 @@ class _PosScreenState extends State<PosScreen> {
         paymentMode: widget.cart.paymentMode,
         orderType: widget.cart.orderType,
         idempotencyKey: _idempotencyKey,
+        store: widget.session.store?.toReceiptStore(),
+        cashier: widget.session.user?.name ?? '',
       );
 
       widget.cart.clear();
-      // Close the bill sheet (if open) so the receipt screen takes over.
-      // Offline receipts (LOCAL-XXXX) flow through the same path — the
-      // OrderCheckout already queued the payload, so this is a success.
+      _fields.loadFrom(widget.cart);
       if (_billSheetOpen && mounted) {
         Navigator.of(context, rootNavigator: true).pop();
       }
       widget.onSettled?.call(receipt);
-
-      // Known outcome — the retry guard is released only now.
       _idempotencyKey = null;
 
-      if (mounted) {
-        setState(() {
-          _settling = false;
-          _discount = TextEditingController();
-          _customer = TextEditingController();
-          _phone = TextEditingController();
-          _upiRef = TextEditingController();
-        });
-      }
+      if (mounted) setState(() => _settling = false);
     } on ApiException catch (error) {
       _failSettlement(error.message);
     } catch (_) {
-      // Receipt-parse / unexpected wire drift must NEVER leave the checkout
-      // button stuck on "Processing…" — surface it like any other failure.
-      _failSettlement(
-        'Checkout failed unexpectedly. Please review the bill and try again.',
-      );
+      _failSettlement('Checkout failed unexpectedly. Please review the bill and try again.');
     }
   }
 
-  /// Shared failure path: releases the spinner, shows the reason in the bill
-  /// pane and as a snackbar (the bill sheet lives on another route and won't
-  /// rebuild with this state).
   void _failSettlement(String message) {
     _idempotencyKey = null;
-
     if (!mounted) return;
     setState(() {
       _settling = false;
       _error = message;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ),
-    );
+    _snack(message, error: true);
   }
 }

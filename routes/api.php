@@ -59,6 +59,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/orders', [OrderApiController::class, 'index'])
         ->middleware('role:admin,cashier');
 
+    // GET /api/orders/{order}/receipt — rebuild a saved bill's receipt for
+    // reprint / WhatsApp share (same payload as POST /api/orders, reprint:true).
+    Route::get('/orders/{order}/receipt', [OrderApiController::class, 'receipt'])
+        ->middleware('role:admin,cashier');
+
     // PATCH /api/orders/{order}/status — move a bill through the fulfilment
     // flow (pending → preparing → ready → completed, or cancelled).
     Route::patch('/orders/{order}/status', [OrderApiController::class, 'updateStatus'])

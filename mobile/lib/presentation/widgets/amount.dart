@@ -1,6 +1,6 @@
 import 'package:intl/intl.dart';
 
-NumberFormat _inr = NumberFormat.currency(locale: 'en_IN', name: 'INR');
+NumberFormat _inr = NumberFormat.currency(locale: 'en_IN', name: 'INR', symbol: '₹');
 
 /// Format an amount as Indian Rupees for the POS UI, e.g. "₹1,234.50".
 String inr(num amount) => _inr.format(amount);

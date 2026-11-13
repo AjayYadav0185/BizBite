@@ -22,9 +22,13 @@ class OrderQueueScreen extends StatefulWidget {
     super.key,
     required this.controller,
     required this.sync,
+    this.onReprint,
   });
 
   final OrderQueueController controller;
+
+  /// Opens the saved bill's receipt (reprint / KOT / WhatsApp).
+  final Future<void> Function(int orderId)? onReprint;
 
   /// Live connectivity + queued-work state for the offline strip.
   final SyncController sync;
@@ -46,6 +50,14 @@ class _OrderQueueScreenState extends State<OrderQueueScreen> {
   void initState() {
     super.initState();
     widget.controller.load();
+  }
+
+  Future<void> _reprint(int orderId) async {
+    try {
+      await widget.onReprint!(orderId);
+    } catch (_) {
+      _snack('Could not load the bill — reprint needs a connection.');
+    }
   }
 
   void _snack(String message, {bool ok = false}) {
@@ -334,6 +346,10 @@ class _OrderQueueScreenState extends State<OrderQueueScreen> {
                             onRefund: () => _refund(controller.orders[index]),
                             onDelivery: () =>
                                 _deliveryMove(controller.orders[index]),
+                            onReprint: widget.onReprint == null ||
+                                    controller.orders[index].id <= 0
+                                ? null
+                                : () => _reprint(controller.orders[index].id),
                           ),
                         ),
                 ),
@@ -385,6 +401,7 @@ class _OrderCard extends StatelessWidget {
     required this.onCancel,
     required this.onRefund,
     required this.onDelivery,
+    this.onReprint,
   });
 
   final OrderQueueOrder order;
@@ -393,6 +410,7 @@ class _OrderCard extends StatelessWidget {
   final VoidCallback onCancel;
   final VoidCallback onRefund;
   final VoidCallback onDelivery;
+  final VoidCallback? onReprint;
 
   bool get _busy => controller.busyOrderIds.contains(order.id);
 
@@ -578,6 +596,12 @@ class _OrderCard extends StatelessWidget {
             onPressed: _busy ? null : onDelivery,
             icon: const Icon(Icons.delivery_dining_rounded, size: 16),
             label: Text(order.deliveryStatus?.label ?? 'Delivery'),
+          ),
+        if (onReprint != null)
+          OutlinedButton.icon(
+            onPressed: _busy ? null : onReprint,
+            icon: const Icon(Icons.print_rounded, size: 16),
+            label: const Text('Reprint'),
           ),
         OutlinedButton.icon(
           onPressed: _busy ? null : onRefund,

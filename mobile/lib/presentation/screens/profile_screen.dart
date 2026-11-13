@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/network/api_exception.dart';
+import '../../core/utils/india.dart';
 import '../../features/auth/data/models/store_profile_model.dart';
 import '../../features/auth/session_controller.dart';
 import '../services/print_settings.dart';
@@ -301,6 +302,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 12),
                 _printingCard(),
                 const SizedBox(height: 12),
+                _printerOptionsCard(),
+                const SizedBox(height: 12),
                 _profileCard(),
                 const SizedBox(height: 12),
                 _passwordCard(),
@@ -378,6 +381,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Paper width + automatic kitchen ticket.
+  Widget _printerOptionsCard() {
+    final settings = widget.printSettings;
+    return Material(
+      color: Colors.white,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      child: Column(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.straighten_rounded),
+            title: const Text('Printer paper',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(settings.paper58mm
+                ? '58 mm roll · 32 characters'
+                : '80 mm roll · 48 characters'),
+            trailing: SegmentedButton<bool>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: true, label: Text('58mm')),
+                ButtonSegment(value: false, label: Text('80mm')),
+              ],
+              selected: {settings.paper58mm},
+              onSelectionChanged: (v) async {
+                await settings.setPaper58mm(v.first);
+                if (mounted) setState(() {});
+              },
+            ),
+          ),
+          const Divider(height: 1),
+          SwitchListTile.adaptive(
+            secondary: const Icon(Icons.soup_kitchen_rounded),
+            title: const Text('Auto-print KOT',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: const Text('Kitchen ticket prints with every bill'),
+            value: settings.autoPrintKot,
+            onChanged: (v) async {
+              await settings.setAutoPrintKot(v);
+              if (mounted) setState(() {});
+            },
           ),
         ],
       ),
@@ -641,6 +693,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
+    // Same checks as the web Store & billing settings — a typo here would
+    // print an invalid GSTIN / FSSAI on every bill.
+    final gstin = _shopGstin.text.trim().toUpperCase();
+    final fssai = _shopFssai.text.trim();
+    final upi = _shopUpi.text.trim();
+    final pin = _shopPincode.text.trim();
+    final problem = _shopGstEnabled && gstin.isEmpty
+        ? 'GSTIN is required to print GST tax invoices.'
+        : gstin.isNotEmpty && !India.isValidGstin(gstin)
+            ? 'This GSTIN is not valid — check for a typo (e.g. 07ABCDE1234F1Z2).'
+            : fssai.isNotEmpty && !India.fssaiPattern.hasMatch(fssai)
+                ? 'FSSAI licence number must be 14 digits.'
+                : upi.isNotEmpty && !India.vpaPattern.hasMatch(upi)
+                    ? 'UPI ID looks wrong — it should look like shopname@okaxis.'
+                    : pin.isNotEmpty && !India.pincodePattern.hasMatch(pin)
+                        ? 'PIN code must be 6 digits.'
+                        : null;
+    if (problem != null) {
+      setState(() {
+        _storeMessage = problem;
+        _storeError = true;
+      });
+      return;
+    }
+    _shopGstin.text = gstin;
+
     final currency = _shopCurrency.text.trim().isEmpty
         ? 'INR'
         : _shopCurrency.text.trim().toUpperCase();
@@ -660,7 +738,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'city': _shopCity.text.trim(),
         'state': _shopState.text.trim(),
         'pincode': _shopPincode.text.trim(),
-        'gstin': _shopGstin.text.trim(),
+        'gstin': gstin,
         'fssai_license': _shopFssai.text.trim(),
         'upi_vpa': _shopUpi.text.trim(),
         'currency': currency,
@@ -683,6 +761,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             error.errorFor('currency') ??
             error.errorFor('default_gst_rate') ??
             error.errorFor('gstin') ??
+            error.errorFor('fssai_license') ??
+            error.errorFor('upi_vpa') ??
             error.errorFor('pincode') ??
             error.message;
         _storeError = true;

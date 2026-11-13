@@ -3,21 +3,14 @@ import 'dart:typed_data' show Uint8List;
 import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 
-import '../../features/orders/data/models/order_models.dart';
 import '../../features/orders/data/models/order_receipt_model.dart';
+import '../../features/orders/receipt_document.dart';
 
-/// Renders an [OrderReceiptModel] to raw ESC/POS bytes and pushes them to a
-/// Bluetooth thermal printer.
+/// Sends a bill or Kitchen Order Ticket to a Bluetooth thermal printer.
 ///
-/// Byte-for-byte mirror of the Laravel `#thermal-paper` block
-/// (`resources/views/livewire/pos/billing-dashboard.blade.php`): same line
-/// order, same 32-col `--------------------------------` rules, same
-/// `<qty> x <name>` rows, same owner template lines (`print_header` /
-/// `print_footer` from the web Receipt Customizer). Mirrors the browser
-/// "print receipt" step of the Livewire POS: identical store branding,
-/// itemized rows and totals appear on the mobile till. If no printer is
-/// reachable the receipt is still available on-screen — printing fails
-/// soft and never blocks the billing flow.
+/// Layout comes from [ReceiptDocument] — the same fixed-width lines the
+/// on-screen preview renders — so what the cashier sees is what prints.
+/// Printing fails soft: the receipt stays on screen if no printer answers.
 class ReceiptPrinter {
   /// True when the thermal generator is ready (ESC/POS profile loaded).
   bool isReady = false;
@@ -34,114 +27,86 @@ class ReceiptPrinter {
     }
   }
 
-  /// Build the raw ESC/POS byte stream for a settled receipt.
-  ///
-  /// Same template as the Laravel `#thermal-paper` block: header template →
-  /// store name/address/phone → 32-col rule → `Bill: <n>` + date →
-  /// cashier → rule → `<qty> x <name>` rows → rule → TOTAL / Paid-via →
-  /// rule → footer template → branding.
-  Future<List<int>> _buildBytes(OrderReceiptModel receipt) async {
-    final profile = await CapabilityProfile.load(name: 'default');
-    final generator = Generator(PaperSize.mm80, profile);
+  /// ESC/POS code pages are Latin-only: replace anything else (e.g. ₹,
+  /// Devanagari item names) so a single character can't abort the print.
+  static String asciiSafe(String text) => text
+      .replaceAll('₹', 'Rs.')
+      .replaceAll('·', '-')
+      .replaceAll('—', '-')
+      .replaceAll(RegExp(r'[^\x20-\x7E]'), '?');
 
+  /// Raw ESC/POS bytes for [lines] on a 58mm (32 col) or 80mm (48 col) roll.
+  static Future<List<int>> bytesFor(
+    List<ReceiptLine> lines, {
+    required int columns,
+  }) async {
+    final profile = await CapabilityProfile.load(name: 'default');
+    final generator =
+        Generator(columns <= 32 ? PaperSize.mm58 : PaperSize.mm80, profile);
     final bytes = <int>[];
 
-    void text(
-      String line, {
-      bool bold = false,
-      PosAlign align = PosAlign.left,
-      PosTextSize size = PosTextSize.size1,
-    }) {
-      bytes.addAll(
-        generator.text(
-          line,
-          styles: PosStyles(
-            bold: bold,
-            align: align,
-            height: size,
-            width: size,
-          ),
-          linesAfter: 0,
+    for (final line in lines) {
+      bytes.addAll(generator.text(
+        asciiSafe(line.text),
+        styles: PosStyles(
+          bold: line.bold,
+          align: switch (line.align) {
+            LineAlign.center => PosAlign.center,
+            LineAlign.right => PosAlign.right,
+            LineAlign.left => PosAlign.left,
+          },
+          height: line.large ? PosTextSize.size2 : PosTextSize.size1,
+          width: line.large ? PosTextSize.size2 : PosTextSize.size1,
         ),
-      );
+      ));
     }
-
-    void divider() => text('--------------------------------');
-
-    // --- Header: Laravel owner template lines (Receipt Customizer) --------
-    if (receipt.store.printHeader.isNotEmpty) {
-      text(
-        receipt.store.printHeader.toUpperCase(),
-        bold: true,
-        align: PosAlign.center,
-      );
-    }
-    text(receipt.store.name.toUpperCase(), bold: true, align: PosAlign.center);
-    if (receipt.store.address.isNotEmpty) {
-      text(receipt.store.address, align: PosAlign.center);
-    }
-    if (receipt.store.phone.isNotEmpty) {
-      text('Ph: ${receipt.store.phone}', align: PosAlign.center);
-    }
-    divider();
-
-    // --- Bill meta: `Bill: <n>` + date row, cashier below (web shape) ------
-    text('Bill: ${receipt.orderNumber}  ${receipt.placedAt}');
-    if (receipt.cashier.isNotEmpty) {
-      text('Cashier: ${receipt.cashier}');
-    }
-    divider();
-
-    // --- Items: `<qty> x <name>` … `<subtotal>` (web shape) ----------------
-    for (final item in receipt.items) {
-      text('${item.quantity} x ${item.foodItemName}');
-      text('  ${item.subtotal.toStringAsFixed(2)}', align: PosAlign.right);
-    }
-    divider();
-
-    // --- Totals: TOTAL / Paid-via rows (web shape) -------------------------
-    text('TOTAL  Rs. ${receipt.totalAmount.toStringAsFixed(2)}', bold: true);
-    text('Paid via  ${receipt.paymentMode.label.toUpperCase()}');
-    divider();
-
-    // --- Footer: Laravel owner template lines (Receipt Customizer) ---------
-    if (receipt.store.printFooter.isNotEmpty) {
-      text(receipt.store.printFooter, align: PosAlign.center);
-    }
-    text('Powered by BizBite', align: PosAlign.center);
-
     bytes.addAll(generator.feed(3));
     bytes.addAll(generator.cut());
-
     return bytes;
   }
 
-  /// Print a receipt over Bluetooth. Returns true on success.
-  ///
-  /// `pendingBytes` can override the generated payload (tests inject a fake).
+  /// Print the customer bill. `pendingBytes` lets tests inject a payload.
   Future<bool> printReceipt(
     OrderReceiptModel receipt, {
+    int columns = 32,
     List<int>? pendingBytes,
   }) async {
+    if (!isReady) await init();
+    final bytes = pendingBytes ??
+        await bytesFor(ReceiptDocument(columns: columns).bill(receipt),
+            columns: columns);
+    return _send(bytes);
+  }
+
+  /// Print the Kitchen Order Ticket (no prices).
+  Future<bool> printKot(
+    OrderReceiptModel receipt, {
+    int columns = 32,
+    Map<String, String> lineNotes = const {},
+  }) async {
+    if (!isReady) await init();
+    final bytes = await bytesFor(
+        ReceiptDocument(columns: columns).kot(receipt, lineNotes: lineNotes),
+        columns: columns);
+    return _send(bytes);
+  }
+
+  Future<bool> _send(List<int> bytes) async {
     lastError = '';
-    if (!isReady) {
-      await init();
-    }
-
-    final bytes = pendingBytes ?? await _buildBytes(receipt);
-
     try {
       final printer = BlueThermalPrinter.instance;
       final devices = await printer.getBondedDevices();
       if (devices.isEmpty) {
         lastError =
-            'No Bluetooth printer found. Pair the thermal printer first.';
+            'No Bluetooth printer found. Pair the thermal printer in Android settings first.';
         return false;
       }
 
-      // Best-effort: pick the first bonded device.
+      // Best-effort: the first bonded device is the counter printer.
       final device = devices[0];
-      await printer.connect(device);
+      if (!(await printer.isConnected ?? false)) {
+        await printer.connect(device);
+      }
       await printer.writeBytes(Uint8List.fromList(bytes));
       await printer.disconnect();
       return true;

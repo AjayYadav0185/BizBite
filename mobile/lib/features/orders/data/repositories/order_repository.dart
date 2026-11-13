@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 
 import '../../../../core/config/api_config.dart';
@@ -84,23 +86,17 @@ class OrderRepository {
   static String _localBillNo(String key) =>
       'LOCAL-${key.replaceAll('-', '').substring(0, 8).toUpperCase()}';
 
-  static String _encode(Map<String, dynamic> json) {
-    final buffer = StringBuffer('{');
-    var first = true;
-    for (final entry in json.entries) {
-      if (!first) buffer.write(',');
-      first = false;
-      buffer.write('"${entry.key}":${_value(entry.value)}');
-    }
-    buffer.write('}');
-    return buffer.toString();
-  }
+  /// Strict JSON (escapes quotes, backslashes, newlines, unicode) — a
+  /// malformed payload would sit in the outbox forever and never sync.
+  static String _encode(Map<String, dynamic> json) => jsonEncode(json);
 
-  static String _value(Object? value) {
-    if (value == null) return 'null';
-    if (value is num || value is bool) return '$value';
-    if (value is Map<String, dynamic>) return _encode(value);
-    if (value is List) return '[${value.map(_value).join(',')}]';
-    return '"${value.toString().replaceAll('"', '\\"')}"';
+  /// GET /api/orders/{id}/receipt — duplicate copy for reprint / WhatsApp.
+  Future<OrderReceiptModel> fetchReceipt(int orderId) async {
+    try {
+      final response = await _client.get<dynamic>(ApiConfig.orderReceipt(orderId));
+      return OrderReceiptModel.fromJson(toMap(response.data), reprint: true);
+    } on DioException catch (error) {
+      throw apiExceptionFrom(error);
+    }
   }
 }

@@ -133,6 +133,17 @@ final class OrderApiController extends Controller
      * Tenant isolation is structural: `{order}` is resolved through the
      * StoreScope-decorated Order model, so another store's bill 404s.
      */
+    /**
+     * Receipt of an existing bill for reprint (tenant-scoped by route model
+     * binding, so another store's bill is a 404). Marked as a duplicate copy.
+     */
+    public function receipt(Order $order): JsonResponse
+    {
+        return response()->json(
+            \App\Services\OrderReceipt::forOrder($order)->toArray() + ['reprint' => true]
+        );
+    }
+
     public function updateStatus(Request $request, Order $order): JsonResponse
     {
         $payload = $request->validate([

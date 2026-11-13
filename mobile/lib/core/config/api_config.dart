@@ -45,6 +45,7 @@ class ApiConfig {
   // Ops: kitchen/counter queue + status transitions + refunds + delivery
   // (see routes/api.php — role:admin,cashier).
   static String orderStatus(int orderId) => '/orders/$orderId/status';
+  static String orderReceipt(int orderId) => '/orders/$orderId/receipt';
   static String orderRefund(int orderId) => '/orders/$orderId/refund';
   static String orderDelivery(int orderId) => '/orders/$orderId/delivery';
 

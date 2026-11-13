@@ -215,6 +215,7 @@ class _BizBiteAppState extends State<BizBiteApp> {
             session: _session,
             orderFlow: _orderFlow,
             printer: _printer,
+            printSettings: _printSettings,
           );
         }
         return HomeScreen(

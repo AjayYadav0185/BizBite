@@ -318,4 +318,28 @@ class MarketReadyTest extends TestCase
 
         $this->assertSame(0, User::query()->withoutGlobalScopes()->count());
     }
+
+    public function test_api_receipt_endpoint_returns_duplicate_copy_scoped_to_store(): void
+    {
+        $store = $this->store();
+        $user = $this->user($store);
+        $item = $this->item($store);
+
+        $order = app(\App\Services\OrderService::class)->place($user, [
+            'items' => [['food_item_id' => $item->id, 'quantity' => 2]],
+            'payment_mode' => 'upi',
+        ])->order;
+
+        \Laravel\Sanctum\Sanctum::actingAs($user);
+        $this->getJson("/api/orders/{$order->id}/receipt")
+            ->assertOk()
+            ->assertJsonPath('order_number', $order->order_number)
+            ->assertJsonPath('reprint', true)
+            ->assertJsonPath('store.gstin', '07ABCDE1234F1Z2')
+            ->assertJsonStructure(['tax_breakup', 'amount_in_words', 'items']);
+
+        $outsider = $this->user($this->store(['name' => 'Other']));
+        \Laravel\Sanctum\Sanctum::actingAs($outsider);
+        $this->getJson("/api/orders/{$order->id}/receipt")->assertNotFound();
+    }
 }

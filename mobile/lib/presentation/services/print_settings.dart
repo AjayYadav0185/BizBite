@@ -19,12 +19,23 @@ class PrintSettings with ChangeNotifier {
   }
 
   static const String storeKey = 'bizbite.print.preview_before_print.v1';
+  static const String paperKey = 'bizbite.print.paper_58mm.v1';
+  static const String kotKey = 'bizbite.print.auto_kot.v1';
 
   final SharedPreferences? _prefs;
 
   /// True → show receipt preview + manual Print button.
   /// False → skip preview, auto-print in the background.
   bool previewBeforePrint = true;
+
+  /// Paper roll: 58mm (32 columns, most Bluetooth printers) or 80mm (48).
+  bool paper58mm = true;
+
+  /// Print a Kitchen Order Ticket automatically after every bill.
+  bool autoPrintKot = false;
+
+  /// Characters per line for the selected roll (ESC/POS Font A).
+  int get columns => paper58mm ? 32 : 48;
 
   /// True once the persisted value (if any) has been read.
   bool loaded = false;
@@ -35,6 +46,8 @@ class PrintSettings with ChangeNotifier {
       if (p.containsKey(storeKey)) {
         previewBeforePrint = p.getBool(storeKey) ?? true;
       }
+      paper58mm = p.getBool(paperKey) ?? true;
+      autoPrintKot = p.getBool(kotKey) ?? false;
       loaded = true;
       notifyListeners();
     } catch (_) {
@@ -54,5 +67,25 @@ class PrintSettings with ChangeNotifier {
       // Persist failure is non-fatal; the in-memory value still applies for
       // this session.
     }
+  }
+
+  Future<void> setPaper58mm(bool value) async {
+    if (paper58mm == value) return;
+    paper58mm = value;
+    notifyListeners();
+    try {
+      final p = _prefs ?? await SharedPreferences.getInstance();
+      await p.setBool(paperKey, value);
+    } catch (_) {}
+  }
+
+  Future<void> setAutoPrintKot(bool value) async {
+    if (autoPrintKot == value) return;
+    autoPrintKot = value;
+    notifyListeners();
+    try {
+      final p = _prefs ?? await SharedPreferences.getInstance();
+      await p.setBool(kotKey, value);
+    } catch (_) {}
   }
 }

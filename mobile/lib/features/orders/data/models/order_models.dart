@@ -32,7 +32,8 @@ enum OrderType { dineIn, takeaway, parcel, delivery }
 
 OrderType orderTypeFromJson(String? value) =>
     OrderType.values.firstWhere(
-      (type) => type.name == value,
+      // Server sends snake_case ('dine_in'); accept the Dart name too.
+      (type) => type.wireValue == value || type.name == value,
       orElse: () => OrderType.takeaway,
     );
 
@@ -61,6 +62,8 @@ class OrderItemModel extends Equatable {
     required this.quantity,
     required this.price,
     required this.subtotal,
+    this.gstRate = 0,
+    this.gstAmount = 0,
   });
 
   /// Server-side snapshot of the item name at billing time.
@@ -69,6 +72,10 @@ class OrderItemModel extends Equatable {
   final double price;
   final double subtotal;
 
+  /// GST slab (%) and the GST included in [subtotal] (prices are inclusive).
+  final int gstRate;
+  final double gstAmount;
+
   factory OrderItemModel.fromJson(Map<String, dynamic> json) =>
       OrderItemModel(
         foodItemName: (json['food_item_name'] ?? json['name'] ?? '')
@@ -76,6 +83,8 @@ class OrderItemModel extends Equatable {
         quantity: toInt(json['quantity']),
         price: toDouble(json['price']),
         subtotal: toDouble(json['subtotal'] ?? json['line_total']),
+        gstRate: toInt(json['gst_rate']),
+        gstAmount: toDouble(json['gst_amount']),
       );
 
   Map<String, dynamic> toJson() => {
@@ -83,10 +92,13 @@ class OrderItemModel extends Equatable {
         'quantity': quantity,
         'price': price.toStringAsFixed(2),
         'subtotal': subtotal.toStringAsFixed(2),
+        'gst_rate': gstRate,
+        'gst_amount': gstAmount.toStringAsFixed(2),
       };
 
   @override
-  List<Object?> get props => [foodItemName, quantity, price, subtotal];
+  List<Object?> get props =>
+      [foodItemName, quantity, price, subtotal, gstRate, gstAmount];
 }
 
 /// One line of the OUTGOING cart when calling `POST /api/orders`.
@@ -128,6 +140,12 @@ class PlaceOrderRequest extends Equatable {
     this.customerName = '',
     this.customerPhone = '',
     this.upiRef = '',
+    this.tableNumber = '',
+    this.campaignCode = '',
+    this.notes = '',
+    this.tenderedAmount = 0,
+    this.splitLegs = const [],
+    this.deliveryAddress = '',
     required this.idempotencyKey,
   });
 
@@ -138,6 +156,14 @@ class PlaceOrderRequest extends Equatable {
   final String customerName;
   final String customerPhone;
   final String upiRef;
+  final String tableNumber;
+  final String campaignCode;
+  final String notes;
+  final double tenderedAmount;
+
+  /// Split-tender legs: `[{mode: 'cash', amount: '100.00'}, …]`.
+  final List<Map<String, String>> splitLegs;
+  final String deliveryAddress;
   final String idempotencyKey;
 
   Map<String, dynamic> toJson() => {
@@ -148,6 +174,16 @@ class PlaceOrderRequest extends Equatable {
         if (customerName.trim().isNotEmpty) 'customer_name': customerName.trim(),
         if (customerPhone.trim().isNotEmpty) 'customer_phone': customerPhone.trim(),
         if (upiRef.trim().isNotEmpty) 'upi_ref': upiRef.trim(),
+        if (tableNumber.trim().isNotEmpty) 'table_number': tableNumber.trim(),
+        if (campaignCode.trim().isNotEmpty)
+          'campaign_code': campaignCode.trim().toUpperCase(),
+        if (notes.trim().isNotEmpty) 'notes': notes.trim(),
+        if (tenderedAmount > 0)
+          'tendered_amount': tenderedAmount.toStringAsFixed(2),
+        if (paymentMode == PaymentMode.split && splitLegs.isNotEmpty)
+          'split_details': splitLegs,
+        if (deliveryAddress.trim().isNotEmpty)
+          'delivery_address': deliveryAddress.trim(),
         'idempotency_key': idempotencyKey,
       };
 
@@ -160,6 +196,12 @@ class PlaceOrderRequest extends Equatable {
         customerName,
         customerPhone,
         upiRef,
+        tableNumber,
+        campaignCode,
+        notes,
+        tenderedAmount,
+        splitLegs,
+        deliveryAddress,
         idempotencyKey,
       ];
 }
