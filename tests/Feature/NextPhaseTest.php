@@ -55,6 +55,8 @@ class NextPhaseTest extends TestCase
                 ->call('addItem', $item->id)
                 ->call('setPaymentMode', $mode)
                 ->assertSet('paymentMode', $mode)
+                // Credit (pay-later) bills must name who owes the money.
+                ->set('customerNameInput', $mode === 'credit' ? 'Sharma ji' : '')
                 ->call('checkout', $mode)
                 ->assertDispatched('trigger-print')
                 ->assertHasNoErrors();

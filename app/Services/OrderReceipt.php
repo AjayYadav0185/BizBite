@@ -7,6 +7,8 @@ use App\Models\Enums\PaymentMode;
 use App\Models\Enums\PaymentStatus;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Store;
+use App\Support\India;
 
 /**
  * Immutable receipt value object returned by {@see OrderService::place()}.
@@ -74,7 +76,82 @@ final class OrderReceipt
         public readonly ?string $deliveryAgent = null,
         public readonly string $deliveryStatus = 'pending',
         public readonly ?string $splitDetails = null,
+        /** @var array{gstin: ?string, fssai: ?string, gst_enabled: bool, upi_vpa: ?string, city: ?string, state: ?string, pincode: ?string}|null */
+        public readonly ?array $storeTax = null,
     ) {}
+
+    /**
+     * Rebuild the receipt for an already-saved bill (reprint / WhatsApp share).
+     */
+    public static function forOrder(Order $order): self
+    {
+        $order->loadMissing(['items', 'store', 'user']);
+        $store = $order->store;
+
+        return self::fromOrder(
+            order: $order,
+            storeName: (string) ($store?->name ?? 'BizBite'),
+            storePhone: $store?->phone,
+            storeAddress: $store?->address,
+            printHeader: $store?->print_header,
+            printFooter: $store?->print_footer,
+            cashierName: $order->user?->name,
+            store: $store,
+        );
+    }
+
+    /**
+     * GST summary per slab for the tax invoice: taxable value, CGST, SGST.
+     *
+     * Menu prices are GST-inclusive and OrderService scales line tax by the
+     * bill discount, so each slab is scaled the same way and the last slab
+     * absorbs paise rounding — the printed CGST+SGST always equals tax_amount.
+     *
+     * @param  array<int, array{subtotal: string, gst_rate?: int, gst_amount?: string}>  $items
+     * @return array<int, array{rate: int, taxable: string, cgst: string, sgst: string, tax: string}>
+     */
+    public static function taxBreakup(array $items, string $subtotal, string $discount, string $taxAmount): array
+    {
+        $groups = [];
+        foreach ($items as $item) {
+            $rate = (int) ($item['gst_rate'] ?? 0);
+            if ($rate <= 0) {
+                continue;
+            }
+            $groups[$rate] ??= ['gross' => '0', 'tax' => '0'];
+            $groups[$rate]['gross'] = bcadd($groups[$rate]['gross'], (string) $item['subtotal'], 2);
+            $groups[$rate]['tax'] = bcadd($groups[$rate]['tax'], (string) ($item['gst_amount'] ?? '0'), 2);
+        }
+
+        if ($groups === [] || bccomp($subtotal, '0', 2) <= 0) {
+            return [];
+        }
+
+        ksort($groups);
+        $factor = bcdiv(bcsub($subtotal, $discount, 4), $subtotal, 8);
+        $rows = [];
+        $allocated = '0';
+        $last = array_key_last($groups);
+
+        foreach ($groups as $rate => $group) {
+            $gross = bcmul($group['gross'], $factor, 2);
+            $tax = $rate === $last
+                ? bcsub($taxAmount, $allocated, 2)
+                : bcmul($group['tax'], $factor, 2);
+            $allocated = bcadd($allocated, $tax, 2);
+            $cgst = bcdiv($tax, '2', 2);
+
+            $rows[] = [
+                'rate' => $rate,
+                'taxable' => bcsub($gross, $tax, 2),
+                'cgst' => $cgst,
+                'sgst' => bcsub($tax, $cgst, 2),
+                'tax' => $tax,
+            ];
+        }
+
+        return $rows;
+    }
 
     /**
      * Total quantity of items on the bill (for the "x ITEMS" summary line).
@@ -126,7 +203,17 @@ final class OrderReceipt
                 'address' => $this->storeAddress,
                 'print_header' => $this->printHeader,
                 'print_footer' => $this->printFooter,
+                'gstin' => $this->storeTax['gstin'] ?? null,
+                'fssai' => $this->storeTax['fssai'] ?? null,
+                'gst_enabled' => (bool) ($this->storeTax['gst_enabled'] ?? false),
+                'upi_vpa' => $this->storeTax['upi_vpa'] ?? null,
+                'city' => $this->storeTax['city'] ?? null,
+                'state' => $this->storeTax['state'] ?? null,
+                'pincode' => $this->storeTax['pincode'] ?? null,
             ],
+            'tax_breakup' => self::taxBreakup($this->items, $this->subtotal, $this->discountAmount, $this->taxAmount),
+            'amount_in_words' => India::words($this->totalAmount),
+            'sac_code' => India::SAC_RESTAURANT,
             'cashier' => $this->cashierName,
             'placed_at' => $this->placedAt,
             'total_quantity' => $this->totalQuantity(),
@@ -161,6 +248,7 @@ final class OrderReceipt
         ?string $cashierName = null,
         string $walletDeduction = '0.00',
         ?string $walletBalanceAfter = null,
+        ?Store $store = null,
     ): self {
         return new self(
             order: $order,
@@ -204,6 +292,15 @@ final class OrderReceipt
             deliveryAgent: $order->delivery_agent,
             deliveryStatus: $order->delivery_status ?? 'pending',
             splitDetails: $order->split_details,
+            storeTax: $store === null ? null : [
+                'gstin' => $store->gstin,
+                'fssai' => $store->fssai_license,
+                'gst_enabled' => (bool) $store->is_gst_enabled,
+                'upi_vpa' => $store->upi_vpa,
+                'city' => $store->city,
+                'state' => $store->state,
+                'pincode' => $store->pincode,
+            ],
         );
     }
 }

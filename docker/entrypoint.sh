@@ -51,14 +51,36 @@ php artisan config:clear  >/dev/null 2>&1 || true
 php artisan cache:clear   >/dev/null 2>&1 || true
 php artisan view:clear    >/dev/null 2>&1 || true
 
-# Completely drop all tables, views, and types, then migrate fresh with seeders
-echo "Wiping database, running fresh migrations, and seeding..."
-php artisan db:wipe --force
-php artisan migrate --seed --force
+# ---- Database schema ------------------------------------------------------------
+# NEVER wipe a live outlet's bills on deploy/restart. Migrations are additive.
+# DB_RESET_ON_BOOT=true restores the old "fresh demo every boot" behaviour —
+# only for throwaway demo instances.
+if [ "${DB_RESET_ON_BOOT:-false}" = "true" ]; then
+    echo "DB_RESET_ON_BOOT=true - wiping database and reseeding DEMO data..."
+    php artisan db:wipe --force
+    php artisan migrate --seed --force
+else
+    php artisan migrate --force
+fi
+
+# First boot: create the store + owner account from env (no demo passwords).
+if [ -n "$OWNER_EMAIL" ] && [ -n "$OWNER_PASSWORD" ]; then
+    php artisan bizbite:install --no-interaction \
+        --store="${STORE_NAME:-My Restaurant}" \
+        --name="${OWNER_NAME:-Owner}" \
+        --email="$OWNER_EMAIL" \
+        --password="$OWNER_PASSWORD" \
+        --if-empty || true
+elif [ "${SEED_DEMO_DATA:-false}" = "true" ]; then
+    php artisan bizbite:install --demo --if-empty --no-interaction || true
+fi
 
 # ---- Optimise ----------------------------------------------------------------
 php artisan config:cache
 php artisan view:cache
+
+# ---- Scheduler (nightly database backup, see routes/console.php) ---------------
+php artisan schedule:work >> "$APP_DIR/storage/logs/scheduler.log" 2>&1 &
 
 # ---- Background queue worker --------------------------------------------------
 export QUEUE_CONNECTION="${QUEUE_CONNECTION:-database}"

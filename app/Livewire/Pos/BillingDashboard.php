@@ -2,15 +2,21 @@
 
 namespace App\Livewire\Pos;
 
+use App\Models\Campaign;
 use App\Models\Category;
 use App\Models\Enums\OrderType;
 use App\Models\Enums\PaymentMode;
 use App\Models\FoodItem;
+use App\Models\Order;
 use App\Models\User;
 use App\Services\Exceptions\OrderPlacementException;
+use App\Services\OrderReceipt;
 use App\Services\OrderService;
+use App\Support\India;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
@@ -20,95 +26,74 @@ use Livewire\Component;
 /**
  * STAFF POS PORTAL — high-speed billing screen.
  *
- * The entire cart lives in reactive public properties, so every tap/keystroke
- * is a Livewire round-trip with zero page reloads and zero client-side JS
- * state. Keyboard-first operation:
+ * The cart lives in reactive public properties; checkout delegates to the
+ * shared {@see OrderService} (same engine as the API / mobile app).
  *
- *   F2  -> clear the whole cart
- *   F4  -> focus the search box
- *   F8  -> CASH checkout
- *   F9  -> UPI checkout
+ * Keyboard-first:
+ *   F2 clear · F4 search · F6 hold bill · F8 cash · F9 UPI · Esc close panels
  *
- * Checkout delegates persistence to the shared {@see OrderService} (the exact
- * same instance the Phase 2 Flutter API controller uses) and, on success,
- * updates the DOM with the receipt data before dispatching the
- * `trigger-print` browser event that fires the native thermal print dialog.
+ * Counter extras for Indian QSRs / restaurants:
+ *   - customer name + mobile on the bill (WhatsApp e-bill share)
+ *   - hold / resume bills (parked per cashier, survive a page reload)
+ *   - dynamic UPI QR with the exact payable amount
+ *   - GST tax invoice + KOT printing, reprint of today's bills
  */
 #[Layout('layouts.app')]
-#[Title('BizBite POS — Billing')]
+#[Title('Billing')]
 final class BillingDashboard extends Component
 {
-    /** Currently selected category filter (null = ALL). */
+    private const MAX_HELD = 20;
+
     public ?int $activeCategoryId = null;
 
-    /** Live menu search term. */
     public string $search = '';
 
-    /**
-     * THE CART. Keyed by food_item_id for O(1) lookups:
-     *   [ 7 => ['id' => 7, 'name' => 'Vada Pav', 'price' => '12.00', 'quantity' => 3], ... ]
-     *
-     * @var array<int, array{id: int, name: string, price: string, quantity: int}>
-     */
+    /** @var array<int, array{id: int, name: string, price: string, quantity: int}> */
     public array $cart = [];
 
-    /** Payment mode for the next settlement: cash|upi|card|credit|split. */
     public string $paymentMode = 'cash';
 
-    /** Order type for the next bill (dine-in / takeaway / parcel / delivery). */
     public string $orderType = 'takeaway';
 
-    /** Dine-in table number (Phase 3 table management). */
     public string $tableNumberInput = '';
 
-    /** Campaign / loyalty code typed by the cashier (Phase 3). */
     public string $campaignInput = '';
 
-    /** Cash tendered for tendered/change math (cash + split legs). */
     public string $tenderedInput = '';
 
-    /** Split legs when paymentMode is split: [{mode, amount}]. */
+    /** @var array<int, array{mode: string, amount: string}> */
     public array $splitLegs = [];
 
-    /** UPI reference / UTR for UPI + split-with-UPI bills. */
     public string $upiRefInput = '';
 
-    /** Delivery address + agent for delivery bills (Phase 3 workflow). */
     public string $deliveryAddressInput = '';
 
     public string $deliveryAgentInput = '';
 
-    /** Receipt payload of the last settled bill (drives the print block). */
-    public ?array $lastReceipt = null;
+    public string $customerNameInput = '';
 
-    /** Cashier-facing error banner. */
-    public ?string $error = null;
+    public string $customerPhoneInput = '';
 
-    /** Cashier-facing success banner. */
-    public ?string $success = null;
-
-    /**
-     * Bill-level discount in rupees, typed by the cashier. Kept as a string so
-     * an empty input stays empty; {@see self::cartDiscount()} sanitizes and
-     * clamps it against the subtotal on every render (MVP scope §6).
-     */
     public string $discountInput = '';
 
-    /** Free-text kitchen / customer note printed on the bill (max 200 chars). */
     public string $notesInput = '';
 
-    /** Shared checkout service (also used by the Flutter API controller). */
+    /** Receipt payload of the last settled / reprinted bill. */
+    public ?array $lastReceipt = null;
+
+    /** Show the post-checkout / reprint panel. */
+    public bool $showReceipt = false;
+
+    /** Right-hand drawer: null | 'held' | 'recent'. */
+    public ?string $drawer = null;
+
+    public ?string $error = null;
+
+    public ?string $success = null;
+
     private OrderService $orders;
 
-    /**
-     * Livewire 3 ONLY calls mount() on the very first full-page render.
-     * Every subsequent interaction (wire:click, live search, checkout) is a
-     * re-hydration that skips mount() and runs boot() instead. The OrderService
-     * must therefore be re-bound in boot() so checkout() never touches an
-     * uninitialized property after the first menu tap — this was the cause of
-     * "Typed property BillingDashboard::$orders must not be accessed before
-     * initialization" whenever a cashier tapped items then pressed settle.
-     */
+    /** Livewire re-hydrates via boot(), not mount(), on every request. */
     public function boot(OrderService $orders): void
     {
         $this->orders = $orders;
@@ -120,30 +105,38 @@ final class BillingDashboard extends Component
     }
 
     // ---------------------------------------------------------------------
-    // Menu data (tenant scoped automatically via StoreScope)
+    // Menu (tenant scoped automatically via StoreScope)
     // ---------------------------------------------------------------------
 
     #[Computed]
     public function categories(): Collection
     {
-        return Category::query()->where('is_active', true)->orderBy('name')->get();
+        return Category::query()->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get();
     }
 
     #[Computed]
     public function menuItems(): Collection
     {
+        $term = trim($this->search);
+
         return FoodItem::query()
             ->with('category:id,name')
             ->where('is_available', true)
-            ->when($this->activeCategoryId, fn ($query, $categoryId) => $query->where('category_id', $categoryId))
-            ->when(trim($this->search) !== '', fn ($query) => $query->where('name', 'like', '%'.trim($this->search).'%'))
+            ->when($this->activeCategoryId, fn ($q, $id) => $q->where('category_id', $id))
+            ->when($term !== '', fn ($q) => $q->where('name', 'like', '%'.$term.'%'))
             ->orderBy('name')
-            ->limit(60)
+            ->limit(120)
             ->get();
     }
 
+    #[Computed]
+    public function store()
+    {
+        return Auth::user()?->store;
+    }
+
     // ---------------------------------------------------------------------
-    // Reactive cart management
+    // Cart
     // ---------------------------------------------------------------------
 
     public function addItem(int $foodItemId): void
@@ -157,9 +150,6 @@ final class BillingDashboard extends Component
             return;
         }
 
-        // Stock control (priority feature §5): never let the cart exceed the
-        // tracked shelf count. OrderService re-checks this at checkout, so the
-        // guarantee holds even if another cashier drains the stock meanwhile.
         if ($item->isOutOfStock()) {
             $this->error = $item->name.' is out of stock.';
 
@@ -186,6 +176,21 @@ final class BillingDashboard extends Component
         }
 
         $this->error = null;
+    }
+
+    /** Enter in the search box adds the first match — barcode / SKU friendly. */
+    public function addFirstMatch(): void
+    {
+        $first = $this->menuItems->first(fn (FoodItem $i) => ! $i->isOutOfStock());
+
+        if ($first === null) {
+            $this->error = 'No item matches "'.trim($this->search).'".';
+
+            return;
+        }
+
+        $this->addItem($first->id);
+        $this->search = '';
     }
 
     public function incrementQuantity(int $foodItemId): void
@@ -227,13 +232,19 @@ final class BillingDashboard extends Component
     #[On('shortcut-clear-cart')]
     public function clearCart(): void
     {
+        $this->resetBillInputs();
+        $this->reset('error', 'success');
+    }
+
+    private function resetBillInputs(): void
+    {
         $this->reset(
-            'cart', 'error', 'success', 'discountInput', 'notesInput',
-            'tableNumberInput', 'campaignInput', 'tenderedInput', 'splitLegs',
-            'upiRefInput', 'deliveryAddressInput', 'deliveryAgentInput'
+            'cart', 'discountInput', 'notesInput', 'tableNumberInput', 'campaignInput',
+            'tenderedInput', 'splitLegs', 'upiRefInput', 'deliveryAddressInput',
+            'deliveryAgentInput', 'customerNameInput', 'customerPhoneInput'
         );
-        $this->paymentMode = 'cash';
-        $this->orderType = 'takeaway';
+        $this->paymentMode = PaymentMode::Cash->value;
+        $this->orderType = OrderType::Takeaway->value;
     }
 
     public function setPaymentMode(string $mode): void
@@ -244,8 +255,29 @@ final class BillingDashboard extends Component
         }
     }
 
+    public function setOrderType(string $type): void
+    {
+        if (in_array($type, array_column(OrderType::cases(), 'value'), strict: true)) {
+            $this->orderType = $type;
+            $this->error = null;
+        }
+    }
+
+    /** Quick-cash denominations (₹ notes) fill the tendered field. */
+    public function setTendered(string $amount): void
+    {
+        if (is_numeric($amount) && (float) $amount >= 0) {
+            $this->tenderedInput = number_format((float) $amount, 2, '.', '');
+        }
+    }
+
+    public function openDrawer(?string $drawer): void
+    {
+        $this->drawer = in_array($drawer, ['held', 'recent'], true) && $this->drawer !== $drawer ? $drawer : null;
+    }
+
     // ---------------------------------------------------------------------
-    // Live totals
+    // Totals
     // ---------------------------------------------------------------------
 
     #[Computed]
@@ -266,13 +298,7 @@ final class BillingDashboard extends Component
         return array_sum(array_column($this->cart, 'quantity'));
     }
 
-    /**
-     * Sanitized, clamped bill-level discount.
-     *
-     * Empty / non-numeric input resolves to "0.00" and the discount can never
-     * exceed the subtotal — the same upper bound OrderService enforces server
-     * side, so the displayed payable amount always matches the saved bill.
-     */
+    /** Manual bill discount, sanitised and clamped to the subtotal. */
     #[Computed]
     public function cartDiscount(): string
     {
@@ -285,18 +311,315 @@ final class BillingDashboard extends Component
         return bccomp($discount, $this->cartTotal, 2) > 0 ? $this->cartTotal : $discount;
     }
 
-    /**
-     * Provisional amount payable after the discount. The server applies the
-     * final Indian rupee round-off inside OrderService at checkout.
-     */
+    /** Subtotal less the manual discount (before campaign + round-off). */
     #[Computed]
     public function cartGrandTotal(): string
     {
         return bcsub($this->cartTotal, $this->cartDiscount, 2);
     }
 
+    /**
+     * Preview of the campaign discount, using the same Campaign::discountFor()
+     * the server applies at checkout, capped to what remains after the manual
+     * discount — so the screen total equals the printed total.
+     */
+    #[Computed]
+    public function campaignDiscount(): string
+    {
+        $code = strtoupper(trim($this->campaignInput));
+
+        if ($code === '' || $this->cart === []) {
+            return '0.00';
+        }
+
+        $campaign = Campaign::query()->where('code', $code)->first();
+        if ($campaign === null) {
+            return '0.00';
+        }
+
+        $discount = $campaign->discountFor($this->cartTotal);
+        $room = $this->cartGrandTotal;
+
+        return bccomp($discount, $room, 2) > 0 ? $room : $discount;
+    }
+
+    #[Computed]
+    public function campaignStatus(): ?string
+    {
+        if (trim($this->campaignInput) === '' || $this->cart === []) {
+            return null;
+        }
+
+        return bccomp($this->campaignDiscount, '0', 2) > 0 ? 'applied' : 'invalid';
+    }
+
+    /** Final amount to collect — rounded to the rupee exactly like OrderService. */
+    #[Computed]
+    public function payable(): string
+    {
+        $after = bcsub($this->cartGrandTotal, $this->campaignDiscount, 2);
+
+        return number_format(round((float) $after), 2, '.', '');
+    }
+
+    #[Computed]
+    public function roundOff(): string
+    {
+        return bcsub($this->payable, bcsub($this->cartGrandTotal, $this->campaignDiscount, 2), 2);
+    }
+
+    #[Computed]
+    public function splitTotal(): string
+    {
+        $sum = '0.00';
+        foreach ($this->splitLegs as $leg) {
+            if (isset($leg['amount']) && is_numeric($leg['amount'])) {
+                $sum = bcadd($sum, number_format((float) $leg['amount'], 2, '.', ''), 2);
+            }
+        }
+
+        return $sum;
+    }
+
+    #[Computed]
+    public function changeDue(): string
+    {
+        if (! is_numeric($this->tenderedInput)) {
+            return '0.00';
+        }
+        $tendered = number_format(max((float) $this->tenderedInput, 0), 2, '.', '');
+        if (bccomp($tendered, $this->payable, 2) < 0) {
+            return '0.00';
+        }
+
+        return bcsub($tendered, $this->payable, 2);
+    }
+
+    /** Dynamic UPI deep link for the QR (null when no VPA is configured). */
+    #[Computed]
+    public function upiLink(): ?string
+    {
+        $vpa = $this->store?->upi_vpa;
+
+        if (blank($vpa) || $this->cart === [] || bccomp($this->payable, '0', 2) <= 0) {
+            return null;
+        }
+
+        return India::upiLink($vpa, (string) $this->store->name, $this->payable, 'BizBite bill');
+    }
+
     // ---------------------------------------------------------------------
-    // Keyboard shortcut wiring (Livewire events)
+    // Split tender
+    // ---------------------------------------------------------------------
+
+    public function addSplitLeg(string $mode, string $amount): void
+    {
+        $mode = strtolower(trim($mode));
+
+        if (! in_array($mode, array_column(PaymentMode::cases(), 'value'), strict: true) || $mode === 'split') {
+            $this->error = 'Unknown payment mode for split leg.';
+
+            return;
+        }
+
+        if (! is_numeric($amount) || (float) $amount <= 0) {
+            $this->error = 'Split amount must be greater than zero.';
+
+            return;
+        }
+
+        $this->splitLegs[] = [
+            'mode' => $mode,
+            'amount' => number_format((float) $amount, 2, '.', ''),
+        ];
+        $this->error = null;
+    }
+
+    /** Fill the remaining split balance in one tap. */
+    public function addSplitRemainder(string $mode): void
+    {
+        $remaining = bcsub($this->payable, $this->splitTotal, 2);
+
+        if (bccomp($remaining, '0', 2) <= 0) {
+            $this->error = 'Split legs already cover the bill.';
+
+            return;
+        }
+
+        $this->addSplitLeg($mode, $remaining);
+    }
+
+    public function removeSplitLeg(int $index): void
+    {
+        unset($this->splitLegs[$index]);
+        $this->splitLegs = array_values($this->splitLegs);
+    }
+
+    // ---------------------------------------------------------------------
+    // Hold / resume (parked bills, per cashier, kept 24h)
+    // ---------------------------------------------------------------------
+
+    private function heldKey(): string
+    {
+        $user = Auth::user();
+
+        return 'pos:held:'.$user?->store_id.':'.$user?->id;
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    #[Computed]
+    public function heldBills(): array
+    {
+        return Cache::get($this->heldKey(), []);
+    }
+
+    #[On('shortcut-hold')]
+    public function holdBill(): void
+    {
+        if ($this->cart === []) {
+            $this->error = 'Nothing to hold — the cart is empty.';
+
+            return;
+        }
+
+        $held = $this->heldBills;
+
+        if (count($held) >= self::MAX_HELD) {
+            $this->error = 'Too many bills on hold ('.self::MAX_HELD.'). Settle or discard some first.';
+
+            return;
+        }
+
+        $id = (string) Str::ulid();
+        $label = collect([
+            filled($this->tableNumberInput) ? 'Table '.trim($this->tableNumberInput) : null,
+            filled($this->customerNameInput) ? trim($this->customerNameInput) : null,
+        ])->filter()->implode(' · ') ?: 'Bill '.(count($held) + 1);
+
+        $held[$id] = [
+            'id' => $id,
+            'label' => $label,
+            'held_at' => now()->format('h:i A'),
+            'total' => $this->payable,
+            'count' => $this->cartCount,
+            'state' => $this->only([
+                'cart', 'orderType', 'tableNumberInput', 'campaignInput', 'discountInput', 'notesInput',
+                'customerNameInput', 'customerPhoneInput', 'deliveryAddressInput', 'deliveryAgentInput',
+            ]),
+        ];
+
+        Cache::put($this->heldKey(), $held, now()->addDay());
+        unset($this->heldBills);
+
+        $this->resetBillInputs();
+        $this->error = null;
+        $this->success = 'Bill held: '.$label.'. Resume it from "Held".';
+    }
+
+    public function resumeBill(string $id): void
+    {
+        $held = $this->heldBills;
+
+        if (! isset($held[$id])) {
+            $this->error = 'That held bill is no longer available.';
+
+            return;
+        }
+
+        // Park whatever is on screen so nothing is ever lost on a swap.
+        if ($this->cart !== []) {
+            $this->holdBill();
+            $held = $this->heldBills;
+        }
+
+        $state = $held[$id]['state'];
+        $label = $held[$id]['label'];
+        unset($held[$id]);
+        Cache::put($this->heldKey(), $held, now()->addDay());
+        unset($this->heldBills);
+
+        foreach ($state as $key => $value) {
+            $this->{$key} = $value;
+        }
+
+        $this->drawer = null;
+        $this->error = null;
+        $this->success = 'Resumed '.$label.'.';
+    }
+
+    public function discardHeldBill(string $id): void
+    {
+        $held = $this->heldBills;
+        unset($held[$id]);
+        Cache::put($this->heldKey(), $held, now()->addDay());
+        unset($this->heldBills);
+    }
+
+    // ---------------------------------------------------------------------
+    // Recent bills + reprint
+    // ---------------------------------------------------------------------
+
+    #[Computed]
+    public function recentBills(): Collection
+    {
+        return Order::query()
+            ->whereDate('created_at', today())
+            ->latest('id')
+            ->limit(25)
+            ->get(['id', 'order_number', 'total_amount', 'payment_mode', 'status', 'customer_name', 'table_number', 'created_at']);
+    }
+
+    public function reprint(int $orderId, string $copy = 'receipt'): void
+    {
+        $order = Order::query()->find($orderId);
+
+        if ($order === null) {
+            $this->error = 'Bill not found.';
+
+            return;
+        }
+
+        $this->lastReceipt = OrderReceipt::forOrder($order)->toArray() + ['reprint' => true];
+        $this->showReceipt = true;
+        $this->drawer = null;
+        $this->dispatch('trigger-print', copy: $copy === 'kot' ? 'kot' : 'receipt');
+    }
+
+    public function closeReceipt(): void
+    {
+        $this->showReceipt = false;
+    }
+
+    /** wa.me link that sends the e-bill to the customer's WhatsApp. */
+    #[Computed]
+    public function whatsappLink(): ?string
+    {
+        $r = $this->lastReceipt;
+        if ($r === null) {
+            return null;
+        }
+
+        $lines = ['*'.($r['store']['name'] ?? 'BizBite').'*', 'Bill: '.$r['order_number'].' · '.$r['placed_at'], ''];
+        foreach ($r['items'] as $item) {
+            $lines[] = $item['quantity'].' x '.$item['food_item_name'].' — ₹'.India::number($item['subtotal']);
+        }
+        if (bccomp((string) ($r['discount_amount'] ?? '0'), '0', 2) > 0) {
+            $lines[] = 'Discount: -₹'.India::number($r['discount_amount']);
+        }
+        $lines[] = '*Total: ₹'.India::number($r['total_amount']).'* ('.strtoupper((string) $r['payment_mode']).')';
+        if (filled($r['store']['gstin'] ?? null)) {
+            $lines[] = 'GSTIN: '.$r['store']['gstin'];
+        }
+        $lines[] = '';
+        $lines[] = filled($r['store']['print_footer'] ?? null) ? $r['store']['print_footer'] : 'Thank you! Visit again.';
+
+        $phone = India::normaliseMobile($r['customer_phone'] ?? null);
+
+        return 'https://wa.me/'.($phone ? '91'.$phone : '').'?text='.rawurlencode(implode("\n", $lines));
+    }
+
+    // ---------------------------------------------------------------------
+    // Checkout
     // ---------------------------------------------------------------------
 
     #[On('shortcut-cash')]
@@ -317,77 +640,6 @@ final class BillingDashboard extends Component
         $this->checkout(PaymentMode::Card->value);
     }
 
-    public function setOrderType(string $type): void
-    {
-        if (in_array($type, array_column(OrderType::cases(), 'value'), strict: true)) {
-            $this->orderType = $type;
-            $this->error = null;
-        }
-    }
-
-    /** Add one split-tender leg (mode + amount) for split checkout. */
-    public function addSplitLeg(string $mode, string $amount): void
-    {
-        $mode = strtolower(trim($mode));
-
-        if (! in_array($mode, array_column(PaymentMode::cases(), 'value'), strict: true)) {
-            $this->error = 'Unknown payment mode for split leg.';
-
-            return;
-        }
-
-        if (! is_numeric($amount) || (float) $amount <= 0) {
-            $this->error = 'Split amount must be greater than zero.';
-
-            return;
-        }
-
-        $this->splitLegs[] = [
-            'mode' => $mode,
-            'amount' => number_format((float) $amount, 2, '.', ''),
-        ];
-        $this->error = null;
-    }
-
-    public function removeSplitLeg(int $index): void
-    {
-        unset($this->splitLegs[$index]);
-        $this->splitLegs = array_values($this->splitLegs);
-    }
-
-    /** Provisional split-leg total (server re-validates at checkout). */
-    #[Computed]
-    public function splitTotal(): string
-    {
-        $sum = '0.00';
-        foreach ($this->splitLegs as $leg) {
-            if (isset($leg['amount']) && is_numeric($leg['amount'])) {
-                $sum = bcadd($sum, number_format((float) $leg['amount'], 2, '.', ''), 2);
-            }
-        }
-
-        return $sum;
-    }
-
-    /** Provisional change due for cash checkout (server recomputes). */
-    #[Computed]
-    public function changeDue(): string
-    {
-        if (! is_numeric($this->tenderedInput)) {
-            return '0.00';
-        }
-        $tendered = number_format(max((float) $this->tenderedInput, 0), 2, '.', '');
-        if (bccomp($tendered, $this->cartGrandTotal, 2) < 0) {
-            return '0.00';
-        }
-
-        return bcsub($tendered, $this->cartGrandTotal, 2);
-    }
-
-    // ---------------------------------------------------------------------
-    // Checkout — commit via the SHARED OrderService, then print
-    // ---------------------------------------------------------------------
-
     public function checkout(string $mode): void
     {
         $this->authorize('place-orders');
@@ -400,19 +652,38 @@ final class BillingDashboard extends Component
             return;
         }
 
+        $phone = null;
+        if (trim($this->customerPhoneInput) !== '') {
+            $phone = India::normaliseMobile($this->customerPhoneInput);
+            if ($phone === null) {
+                $this->error = 'Customer mobile must be a valid 10-digit Indian number.';
+
+                return;
+            }
+        }
+
+        $modeEnum = PaymentMode::tryFrom($mode) ?? PaymentMode::Cash;
+        $typeEnum = OrderType::tryFrom($this->orderType) ?? OrderType::Takeaway;
+
+        if ($modeEnum === PaymentMode::Credit && blank(trim($this->customerNameInput)) && $phone === null) {
+            $this->error = 'Credit (pay later) bills need the customer name or mobile.';
+
+            return;
+        }
+
+        if ($typeEnum === OrderType::DineIn && blank(trim($this->tableNumberInput))) {
+            $this->error = 'Enter the table number for a dine-in bill.';
+
+            return;
+        }
+
         /** @var User $user */
         $user = Auth::user();
 
         try {
-            $modeEnum = PaymentMode::tryFrom($mode) ?? PaymentMode::Cash;
-            $typeEnum = OrderType::tryFrom($this->orderType) ?? OrderType::Takeaway;
-
             $receipt = $this->orders->place($user, [
                 'items' => array_map(
-                    fn (array $line): array => [
-                        'food_item_id' => $line['id'],
-                        'quantity' => $line['quantity'],
-                    ],
+                    fn (array $line): array => ['food_item_id' => $line['id'], 'quantity' => $line['quantity']],
                     array_values($this->cart)
                 ),
                 'payment_mode' => $modeEnum->value,
@@ -426,6 +697,8 @@ final class BillingDashboard extends Component
                 'upi_ref' => substr(trim($this->upiRefInput), 0, 60) ?: null,
                 'delivery_address' => substr(trim($this->deliveryAddressInput), 0, 255) ?: null,
                 'delivery_agent' => substr(trim($this->deliveryAgentInput), 0, 80) ?: null,
+                'customer_name' => substr(trim($this->customerNameInput), 0, 80) ?: null,
+                'customer_phone' => $phone,
             ]);
         } catch (OrderPlacementException $exception) {
             $this->error = $exception->getMessage();
@@ -433,21 +706,14 @@ final class BillingDashboard extends Component
             return;
         }
 
-        // Update the DOM with the printed receipt data FIRST...
         $this->lastReceipt = $receipt->toArray();
-        $this->success = sprintf('Bill %s settled — ₹%s', $receipt->order->order_number, $receipt->totalAmount);
+        $this->showReceipt = true;
+        $this->success = sprintf('Bill %s settled — %s', $receipt->order->order_number, India::money($receipt->totalAmount));
 
-        // ...then reset the cart for the next customer...
-        $this->reset(
-            'cart', 'discountInput', 'notesInput', 'tableNumberInput',
-            'campaignInput', 'tenderedInput', 'splitLegs', 'upiRefInput',
-            'deliveryAddressInput', 'deliveryAgentInput'
-        );
-        $this->paymentMode = PaymentMode::Cash->value;
-        $this->orderType = OrderType::Takeaway->value;
+        $this->resetBillInputs();
+        unset($this->recentBills);
 
-        // ...and fire the browser event that triggers the native print dialog.
-        $this->dispatch('trigger-print');
+        $this->dispatch('trigger-print', copy: 'receipt');
     }
 
     public function render()

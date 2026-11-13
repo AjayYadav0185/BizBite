@@ -21,7 +21,7 @@ use Livewire\Component;
  * reach the admin console — enforced by the role gates + middleware.
  */
 #[Layout('layouts.guest')]
-#[Title('BizBite — Sign in')]
+#[Title('Sign in')]
 final class Login extends Component
 {
     public string $email = '';

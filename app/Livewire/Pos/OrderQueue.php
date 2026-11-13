@@ -31,7 +31,7 @@ use Livewire\Component;
  * {@see OrderService::updateStatus()} — the same code path the mobile API uses.
  */
 #[Layout('layouts.app')]
-#[Title('BizBite POS — Order Queue')]
+#[Title('Kitchen orders')]
 final class OrderQueue extends Component
 {
     /** 'all' or an OrderType value — the dine-in / takeaway split (§4.5). */

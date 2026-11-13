@@ -1,65 +1,64 @@
 import defaultTheme from 'tailwindcss/defaultTheme';
 
 /**
- * BizBite design system — mirrors mobile/lib/presentation/theme/bizbite_theme.dart.
- * Single source of truth: emerald food-brand over charcoal slate + soft green-grey
- * light surfaces. Keep in sync with the `tailwind.config` runtime object embedded
- * in resources/views/layouts/*.blade.php (used by the CDN fallback).
+ * BizBite design system.
+ *
+ * Colour VALUES live in resources/views/partials/theme.blade.php as CSS
+ * variables ("R G B" triplets) so light/dark mode is a single class flip on
+ * <html>. This file only maps Tailwind names onto those variables — keep it
+ * in sync with the inline `tailwind.config` (CDN fallback) in that partial.
  */
+const v = (name) => `rgb(var(--${name}) / <alpha-value>)`;
+const scale = (name, steps) => Object.fromEntries(steps.map((s) => [s, v(`${name}-${s}`)]));
+
 /** @type {import('tailwindcss').Config} */
 export default {
+    darkMode: 'class',
     content: [
         './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
         './storage/framework/views/*.php',
         './resources/**/*.blade.php',
         './resources/**/*.js',
-        './resources/**/*.vue',
+        './app/Livewire/**/*.php',
     ],
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Poppins', 'Figtree', ...defaultTheme.fontFamily.sans],
+                sans: ['Figtree', ...defaultTheme.fontFamily.sans],
+                display: ['Poppins', 'Figtree', ...defaultTheme.fontFamily.sans],
             },
             colors: {
-                // --- Brand (theme §3 AppColors) -------------------------------
-                brand: {
-                    50: '#ECFDF5', // infoBg / successBg (emerald-50)
-                    100: '#D1FAE5',
-                    200: '#A7F3D0',
-                    300: '#6EE7B7', // accentSoft (emerald-300)
-                    400: '#34D399', // primaryDark / primaryLight
-                    500: '#0c4f8c', // primary / success (emerald-500)
-                    600: '#059669', // primarySoft / successDeep
-                    700: '#047857', // primaryDeep
-                    800: '#065F46',
-                    900: '#064E3B',
-                },
-                // --- Light canvas / surfaces ------------------------------------
-                canvas: '#F5F7F6', // background (soft green-white)
-                'canvas-soft': '#F8FAF8', // surfaceSoft
-                'surface-muted': '#F0F3F1', // surfaceMuted
-                'surface-subtle': '#EBEFED', // surfaceSubtle
-                'card-border': '#E1E7E3', // border / hairline
-                'border-muted': '#CBD5E1', // borderMuted (slate-300)
-                'grad-start': '#F2F6F4', // page gradient start
-                'grad-mid': '#E6EDE8', // page gradient mid
-                'grad-end': '#DCE5DF', // page gradient end
-                // --- Status (theme §3) -------------------------------------------
-                warn: {
-                    50: '#FFF3E8', // warningBg (orange-50)
-                    100: '#FFEDD5',
-                    500: '#FF8C42', // warning — warm food orange
-                    600: '#FF6D00', // warningDeep
-                },
-                info: {
-                    500: '#17A8C4', // infoCyan
-                },
+                brand: scale('brand', [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
+                accent: scale('accent', [50, 100, 400, 500, 600, 700]),
+                bg: v('bg'),
+                surface: v('surface'),
+                'surface-2': v('surface-2'),
+                'surface-3': v('surface-3'),
+                line: v('line'),
+                'line-strong': v('line-strong'),
+                ink: v('ink'),
+                'ink-2': v('ink-2'),
+                'ink-3': v('ink-3'),
+                'brand-ink': v('brand-ink'),
+                'brand-soft': v('brand-soft'),
+                // Legacy aliases used by the older admin panels.
+                canvas: v('bg'),
+                'canvas-soft': v('surface-2'),
+                'surface-muted': v('surface-2'),
+                'surface-subtle': v('surface-3'),
+                'card-border': v('line'),
+                'border-muted': v('line-strong'),
+                'grad-start': v('bg'),
+                'grad-mid': v('surface-2'),
+                'grad-end': v('surface-3'),
+                warn: { 50: v('accent-50'), 100: v('accent-100'), 500: v('accent-500'), 600: v('accent-600') },
+                info: { 500: '#17A8C4' },
                 whatsapp: '#25D366',
             },
             boxShadow: {
-                // theme AppShadows.card / AppShadows.bar
-                card: '0 2px 12px 0 rgba(20, 21, 31, 0.05)',
-                'card-hover': '0 4px 16px 0 rgba(20, 21, 31, 0.09)',
+                card: '0 1px 2px 0 rgb(20 16 40 / .04), 0 2px 10px -2px rgb(20 16 40 / .06)',
+                'card-hover': '0 4px 20px -4px rgb(20 16 40 / .14)',
+                pop: '0 12px 40px -8px rgb(20 16 40 / .28)',
             },
         },
     },

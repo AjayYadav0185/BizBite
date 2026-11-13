@@ -122,6 +122,7 @@ final class OrderService
                             printHeader: $store->print_header,
                             printFooter: $store->print_footer,
                             cashierName: $user->name,
+                            store: $store,
                         );
                     }
                 }
@@ -422,6 +423,7 @@ final class OrderService
                     cashierName: $user->name,
                     walletDeduction: $walletDeduction,
                     walletBalanceAfter: $walletBalanceAfter,
+                    store: $store,
                 );
             }, attempts: 3);
         } catch (OrderPlacementException $exception) {

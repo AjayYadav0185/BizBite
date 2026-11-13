@@ -17,6 +17,9 @@ mobile
 
 # Local dev data — never ship the developer's SQLite database
 database/database.sqlite
+# Adminer (password-less DB console) + the dev database it hosts: dev only,
+# must never be reachable on a production server.
+public/adminer
 
 # Build artifacts & caches
 public/build

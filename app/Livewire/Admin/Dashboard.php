@@ -13,7 +13,7 @@ use Livewire\Component;
  * A single full-page Livewire component hosting modular child components:
  *
  *   - Livewire\Admin\MenuManager        (menu CRUD + availability toggles)
- *   - Livewire\Admin\ReceiptCustomizer  (print header/footer bindings)
+ *   - Livewire\Admin\StoreSettings      (business, GSTIN, FSSAI, UPI, receipt lines)
  *   - Livewire\Admin\SalesSummary       (today's KPIs, tenant scoped)
  *   - Livewire\Admin\Reports            (hourly / best-sellers / range / CSV)
  *   - Livewire\Admin\TableManager       (dining tables, Phase 3)
@@ -28,27 +28,34 @@ use Livewire\Component;
  * anywhere in the portal.
  */
 #[Layout('layouts.app')]
-#[Title('BizBite Admin — Store Console')]
+#[Title('Owner Console')]
 final class Dashboard extends Component
 {
     /** Active tab, synced with the browser URL for deep links. */
     #[Url(history: true)]
-    public string $tab = 'menu';
+    public string $tab = 'sales';
 
     /** Whitelist of renderable tabs (child components). */
-    private const TABS = ['menu', 'receipt', 'sales', 'reports', 'tables', 'campaigns', 'staff', 'logs'];
+    private const TABS = ['sales', 'menu', 'reports', 'tables', 'campaigns', 'staff', 'store', 'logs'];
+
+    /** Old deep links keep working. */
+    private const ALIASES = ['receipt' => 'store'];
 
     public function mount(): void
     {
         $this->authorize('access-admin-portal');
 
+        $this->tab = self::ALIASES[$this->tab] ?? $this->tab;
+
         if (! in_array($this->tab, self::TABS, strict: true)) {
-            $this->tab = 'menu';
+            $this->tab = 'sales';
         }
     }
 
     public function switchTab(string $tab): void
     {
+        $tab = self::ALIASES[$tab] ?? $tab;
+
         if (in_array($tab, self::TABS, strict: true)) {
             $this->tab = $tab;
         }

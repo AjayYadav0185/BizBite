@@ -41,7 +41,7 @@
                 @enderror
             </div>
             <button wire:click="createCategory" wire:loading.attr="disabled"
-                    class="shrink-0 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-slate-700 disabled:opacity-50">
+                    class="shrink-0 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-brand-700 disabled:opacity-50">
                 + Add Category
             </button>
         </div>

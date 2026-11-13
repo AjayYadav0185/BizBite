@@ -1,472 +1,452 @@
 {{-- =====================================================================
-     BizBite — STAFF POS PORTAL (Livewire 3)
-     Split-pane billing dashboard. All state is Livewire-driven; the only
-     JS present is the keyboard-shortcut bridge and the `trigger-print`
-     listener that opens the native thermal print dialog.
+     BizBite — STAFF POS: billing screen
+     Menu grid (left) · live bill (right) · held / recent drawer ·
+     settle panel with GST invoice, KOT and WhatsApp e-bill.
 ====================================================================== --}}
-<div class="flex min-h-screen flex-col overflow-hidden bg-slate-950 pb-14 text-slate-100 lg:pb-0" x-data>
+@php
+    $money = fn ($v) => \App\Support\India::money($v);
+    $orderTypes = ['takeaway' => 'Takeaway', 'dine_in' => 'Dine-in', 'parcel' => 'Parcel', 'delivery' => 'Delivery'];
+    $payModes = ['cash' => 'Cash', 'upi' => 'UPI', 'card' => 'Card', 'credit' => 'Credit', 'split' => 'Split'];
+    $foodDot = ['veg' => 'border-emerald-600 text-emerald-600', 'non_veg' => 'border-red-600 text-red-600', 'egg' => 'border-amber-500 text-amber-500'];
+    $field = 'w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-ink placeholder:text-ink-3 outline-none transition focus:border-brand-500 focus:bg-surface focus:ring-2 focus:ring-brand-500/20';
+    $label = 'mb-1 block text-[11px] font-semibold uppercase tracking-wider text-ink-3';
+    $held = $this->heldBills;
+@endphp
+<div class="flex h-[100dvh] flex-col overflow-hidden" x-data="{ more: false }">
     <style>
-        /* ------------------------------------------------------------
-           THERMAL PRINT LAYOUT — only #thermal-receipt reaches paper.
-           Everything else (the whole app shell) is stripped.
-           80mm thermal roll: 72mm printable width, monospace receipt.
-        ------------------------------------------------------------ */
         @media print {
+            @page { margin: 2mm; size: 80mm auto; }
+            html, body { background: #fff !important; }
             body * { visibility: hidden !important; }
-            #thermal-receipt, #thermal-receipt * { visibility: visible !important; }
-            #thermal-receipt {
-                /* #thermal-receipt is display:none on screen (Tailwind 'hidden');
-                   visibility alone cannot override display:none, so without this
-                   the 80mm roll printed BLANK. Force it visible for printing. */
-                display: block !important;
-                position: absolute !important;
-                inset: 0 !important;
-                width: 72mm !important;
-                padding: 0 !important;
-                margin: 0 !important;
-                color: #000 !important;
-                background: #fff !important;
-                font-family: 'Courier New', monospace !important;
-                font-size: 12px !important;
-                line-height: 1.35 !important;
-                box-shadow: none !important;
-                border: 0 !important;
+            body[data-print="receipt"] #print-receipt, body[data-print="receipt"] #print-receipt *,
+            body[data-print="kot"] #print-kot, body[data-print="kot"] #print-kot * { visibility: visible !important; }
+            body[data-print="receipt"] #print-receipt, body[data-print="kot"] #print-kot {
+                display: block !important; position: absolute !important; left: 0; top: 0; width: 72mm !important;
             }
-            @page { margin: 3mm; size: 80mm auto; }
         }
     </style>
 
-    {{-- ---------------------------------------------------- TOP BAR --}}
-    <header class="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-4 py-3 print:hidden sm:px-5">
-        <div class="flex min-w-0 items-center gap-3">
-            {{-- Brand badge (mobile/assets/icons/bizbite_mark.png) on a light plate:
-                 the badge is dark purple, so it needs a light backing to stay
-                 legible against this slate-900 POS chrome. --}}
-            <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white shadow-sm">
-                <img src="{{ asset('images/bizbite_logo_mark.png') }}" alt="BizBite logo"
-                     width="28" height="28" class="h-7 w-7" />
-            </span>
-            <div class="min-w-0">
-                <p class="truncate text-sm font-bold leading-tight">{{ auth()->user()?->store?->name ?? 'BizBite POS' }}</p>
-                <p class="truncate text-xs text-slate-400">Cashier: {{ auth()->user()?->name }}</p>
-            </div>
-        </div>
+    @include('partials.pos-nav', ['active' => 'billing'])
 
-        <div class="hidden items-center gap-2 text-xs text-slate-300 md:flex">
-            <span class="rounded border border-slate-700 bg-slate-800 px-2 py-1 font-mono">F2</span> Clear
-            <span class="rounded border border-slate-700 bg-slate-800 px-2 py-1 font-mono">F4</span> Search
-            <span class="rounded border border-slate-700 bg-slate-800 px-2 py-1 font-mono">F8</span> Cash
-            <span class="rounded border border-slate-700 bg-slate-800 px-2 py-1 font-mono">F9</span> UPI
-        </div>
+    <div class="flex min-h-0 flex-1 print:hidden">
+        {{-- =========================================== MENU --}}
+        <section class="flex min-w-0 flex-1 flex-col">
+            <div class="space-y-3 border-b border-line bg-surface px-3 py-3 sm:px-4">
+                <div class="flex items-center gap-2">
+                    <div class="relative flex-1">
+                        <x-icon name="search" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
+                        <input id="pos-search" type="search" autocomplete="off"
+                               placeholder="Search item… Enter to add (F4)"
+                               wire:model.live.debounce.250ms="search"
+                               wire:keydown.enter.prevent="addFirstMatch"
+                               class="{{ $field }} h-10 pl-9" />
+                    </div>
+                    <button wire:click="openDrawer('held')"
+                            @class(['relative flex h-10 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition',
+                                $drawer === 'held' ? 'border-brand-500 bg-brand-soft text-brand-ink' : 'border-line text-ink-2 hover:border-brand-400'])>
+                        <x-icon name="pause" class="h-4 w-4" /><span class="hidden sm:inline">Held</span>
+                        @if (count($held))
+                            <span class="grid h-5 min-w-5 place-items-center rounded-full bg-accent-500 px-1 text-[10px] font-bold text-white">{{ count($held) }}</span>
+                        @endif
+                    </button>
+                    <button wire:click="openDrawer('recent')"
+                            @class(['flex h-10 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition',
+                                $drawer === 'recent' ? 'border-brand-500 bg-brand-soft text-brand-ink' : 'border-line text-ink-2 hover:border-brand-400'])>
+                        <x-icon name="history" class="h-4 w-4" /><span class="hidden sm:inline">Recent</span>
+                    </button>
+                </div>
 
-        <div class="flex items-center gap-3 print:hidden">
-            <a href="{{ route('pos.orders') }}"
-               class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 transition hover:border-emerald-500 hover:text-emerald-400">
-                Order Queue →
-            </a>
-            <a href="{{ route('pos.shift') }}"
-               class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 transition hover:border-emerald-500 hover:text-emerald-400">
-                Shift
-            </a>
-            @if (auth()->user()?->isAdmin())
-                {{-- Owners can hop back to the Admin console from the POS —
-                     without this an admin who switches to POS mode is stuck
-                     with no UI way back (only Order Queue had the link). --}}
-                <a href="{{ route('admin.dashboard') }}"
-                   class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 transition hover:border-emerald-500 hover:text-emerald-400">
-                    Admin
-                </a>
-            @endif
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <button type="submit" class="text-xs font-semibold text-slate-400 hover:text-red-400">Logout</button>
-            </form>
-        </div>
-    </header>
-
-    {{-- ---------------------------------------------------- FLASH --}}
-    <div class="px-4 pt-3 print:hidden sm:px-5">
-        @if ($error)
-            <p class="rounded-md bg-red-500/15 px-4 py-2 text-sm font-semibold text-red-300" role="alert">{{ $error }}</p>
-        @endif
-        @if ($success)
-            <p class="rounded-md bg-emerald-500/15 px-4 py-2 text-sm font-semibold text-emerald-300" role="status">{{ $success }}</p>
-        @endif
-    </div>
-
-    {{-- ---------------------------------------------------- SPLIT PANE --}}
-    <div class="flex flex-col gap-4 p-4 print:hidden sm:p-5 lg:min-h-0 lg:flex-1 lg:flex-row lg:items-stretch lg:gap-5">
-
-
-        {{-- LEFT PANE: MENU GRID --}}
-        <section class="flex min-w-0 flex-col gap-4 lg:flex-1">
-            <div class="flex flex-wrap items-center gap-3">
-                <input
-                    id="pos-search"
-                    type="search"
-                    placeholder="Search menu…  (F4)"
-                    wire:model.live.debounce.300ms="search"
-                    class="w-full max-w-xs rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white outline-none focus:border-emerald-500 sm:w-64"
-                />
-
-                <div class="flex flex-wrap gap-2" role="tablist">
+                <div class="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5" role="tablist">
                     <button wire:click="$set('activeCategoryId', null)"
-                            class="rounded-full px-3 py-1.5 text-xs font-bold transition {{ $activeCategoryId === null ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
-                        All
+                            @class(['shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition',
+                                $activeCategoryId === null ? 'bg-brand-600 text-white shadow-sm' : 'bg-surface-2 text-ink-2 hover:bg-surface-3'])>
+                        All items
                     </button>
                     @foreach ($this->categories as $category)
-                        <button wire:click="$set('activeCategoryId', {{ $category->id }})"
-                                wire:key="cat-{{ $category->id }}"
-                                class="rounded-full px-3 py-1.5 text-xs font-bold transition {{ $activeCategoryId === $category->id ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
+                        <button wire:key="cat-{{ $category->id }}" wire:click="$set('activeCategoryId', {{ $category->id }})"
+                                @class(['shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition',
+                                    $activeCategoryId === $category->id ? 'bg-brand-600 text-white shadow-sm' : 'bg-surface-2 text-ink-2 hover:bg-surface-3'])>
                             {{ $category->name }}
                         </button>
                     @endforeach
                 </div>
             </div>
 
-            <div class="grid auto-rows-min grid-cols-2 gap-3 overflow-y-auto pb-4 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
-                @forelse ($this->menuItems as $item)
-                    <button
-                        wire:key="menu-{{ $item->id }}"
-                        @if ($item->isOutOfStock()) disabled @else wire:click="addItem({{ $item->id }})" @endif
-                        @class([
-                            'group flex flex-col items-start rounded-xl border p-4 text-left transition',
-                            $item->isOutOfStock()
-                                ? 'cursor-not-allowed border-slate-800 bg-slate-900/50 opacity-60'
-                                : 'border-slate-800 bg-slate-900 hover:border-emerald-500 hover:bg-slate-800 active:scale-[.97]',
-                        ])
-                    >
-                        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $item->category?->name }}</span>
-                        <span class="mt-1 text-sm font-bold leading-snug">{{ $item->name }}</span>
-                        <span @class(['mt-2 text-base font-black', $item->isOutOfStock() ? 'text-slate-500 line-through' : 'text-emerald-400'])>₹{{ $item->price }}</span>
-                        @if ($item->isOutOfStock())
-                            <span class="mt-1.5 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-red-300">Sold out</span>
-                        @elseif ($item->isLowStock())
-                            <span class="mt-1.5 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-300">Only {{ $item->stock_quantity }} left</span>
-                        @endif
-                    </button>
-                @empty
-                    <p class="col-span-full rounded-xl border border-dashed border-slate-700 p-10 text-center text-sm text-slate-400">
-                        No menu items match. Adjust the search or category filter.
-                    </p>
-                @endforelse
-            </div>
-        </section>
-
-        {{-- RIGHT PANE: LIVE CART --}}
-        <aside id="pos-cart" class="mt-4 flex w-full max-h-[34rem] scroll-mt-28 flex-none flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 lg:mt-0 lg:w-[22rem] lg:max-h-none">
-            <div class="flex items-center justify-between border-b border-slate-800 px-4 py-3">
-                <h2 class="text-sm font-black uppercase tracking-widest text-slate-300">Current Bill</h2>
-                <span class="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-bold text-emerald-400">{{ $this->cartCount }} items</span>
-            </div>
-
-            <ul class="max-h-72 min-h-0 flex-1 divide-y divide-slate-800 overflow-y-auto lg:max-h-none">
-                @forelse ($cart as $line)
-                    <li wire:key="cart-{{ $line['id'] }}" class="flex items-center gap-2 px-4 py-3">
-                        <div class="min-w-0 flex-1">
-                            <p class="truncate text-sm font-bold">{{ $line['name'] }}</p>
-                            <p class="text-xs text-slate-400">₹{{ $line['price'] }} × {{ $line['quantity'] }}</p>
+            @if ($error || $success)
+                <div class="px-3 pt-3 sm:px-4">
+                    @if ($error)
+                        <div class="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-300" role="alert">
+                            <x-icon name="alert" class="h-4 w-4 shrink-0" /><span class="flex-1">{{ $error }}</span>
+                            <button wire:click="$set('error', null)" class="opacity-60 hover:opacity-100"><x-icon name="x" class="h-4 w-4" /></button>
                         </div>
-                        <div class="flex items-center gap-1">
-                            <button wire:click="decrementQuantity({{ $line['id'] }})"
-                                    class="h-7 w-7 rounded-md bg-slate-800 font-black text-slate-200 hover:bg-slate-700">−</button>
-                            <span class="w-8 text-center text-sm font-black">{{ $line['quantity'] }}</span>
-                            <button wire:click="incrementQuantity({{ $line['id'] }})"
-                                    class="h-7 w-7 rounded-md bg-slate-800 font-black text-slate-200 hover:bg-slate-700">+</button>
-                        </div>
-                        <p class="w-16 text-right text-sm font-black text-emerald-400">
-                            ₹{{ number_format((float) bcmul($line['price'], (string) $line['quantity'], 2), 2) }}
-                        </p>
-                        <button wire:click="removeItem({{ $line['id'] }})"
-                                class="text-slate-500 hover:text-red-400" title="Remove line">✕</button>
-                    </li>
-                @empty
-                    <li class="grid h-full place-items-center px-6 text-center text-sm text-slate-500">
-                        Tap menu items or press F4 to search.<br/>F8 = Cash · F9 = UPI
-                    </li>
-                @endforelse
-            </ul>
-
-            <div class="border-t border-slate-800 px-4 py-4">
-                {{-- Bill-level discount + free-text note (MVP scope §6) --}}
-                <div class="mb-3 grid grid-cols-2 gap-2">
-                    <label class="block">
-                        <span class="text-[11px] font-black uppercase tracking-widest text-slate-400">Discount ₹</span>
-                        <input type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"
-                               wire:model.live.debounce.400ms="discountInput"
-                               class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-bold text-white outline-none focus:border-emerald-500" />
-                    </label>
-                    <label class="block">
-                        <span class="text-[11px] font-black uppercase tracking-widest text-slate-400">Note</span>
-                        <input type="text" maxlength="200" placeholder="e.g. no onion"
-                               wire:model.live.debounce.400ms="notesInput"
-                               class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
-                    </label>
-                </div>
-
-                {{-- Order type + table + campaign + tendered (next-phase completion) --}}
-                <div class="mb-3 grid grid-cols-4 gap-1.5" role="group" aria-label="Order type">
-                    @foreach (['dine_in' => 'Dine-in', 'takeaway' => 'Takeaway', 'parcel' => 'Parcel', 'delivery' => 'Delivery'] as $value => $label)
-                        <button wire:click="setOrderType('{{ $value }}')"
-                                class="rounded-lg py-1.5 text-[11px] font-black uppercase transition {{ $orderType === $value ? 'bg-sky-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
-                            {{ $label }}
-                        </button>
-                    @endforeach
-                </div>
-
-                <div class="mb-3 grid grid-cols-2 gap-2">
-                    <label class="block">
-                        <span class="text-[11px] font-black uppercase tracking-widest text-slate-400">Table (dine-in)</span>
-                        <input type="text" maxlength="20" placeholder="T1"
-                               wire:model.live.debounce.400ms="tableNumberInput"
-                               class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
-                    </label>
-                    <label class="block">
-                        <span class="text-[11px] font-black uppercase tracking-widest text-slate-400">Campaign code</span>
-                        <input type="text" maxlength="40" placeholder="DIWALI10"
-                               wire:model.live.debounce.400ms="campaignInput"
-                               class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm uppercase text-white outline-none focus:border-emerald-500" />
-                    </label>
-                </div>
-
-                @if ($orderType === 'delivery')
-                    <div class="mb-3 grid grid-cols-2 gap-2">
-                        <label class="block">
-                            <span class="text-[11px] font-black uppercase tracking-widest text-slate-400">Delivery address</span>
-                            <input type="text" maxlength="255" placeholder="Flat / street / landmark"
-                                   wire:model.live.debounce.400ms="deliveryAddressInput"
-                                   class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
-                        </label>
-                        <label class="block">
-                            <span class="text-[11px] font-black uppercase tracking-widest text-slate-400">Agent</span>
-                            <input type="text" maxlength="80" placeholder="Rider name"
-                                   wire:model.live.debounce.400ms="deliveryAgentInput"
-                                   class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
-                        </label>
-                    </div>
-                @endif
-
-                <div class="mb-3 grid grid-cols-2 gap-2">
-                    <label class="block">
-                        <span class="text-[11px] font-black uppercase tracking-widest text-slate-400">Tendered ₹</span>
-                        <input type="number" min="0" step="0.01" placeholder="Cash received"
-                               wire:model.live.debounce.400ms="tenderedInput"
-                               class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
-                    </label>
-                    <label class="block">
-                        <span class="text-[11px] font-black uppercase tracking-widest text-slate-400">UPI ref</span>
-                        <input type="text" maxlength="60" placeholder="UTR (UPI/split)"
-                               wire:model.live.debounce.400ms="upiRefInput"
-                               class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
-                    </label>
-                </div>
-                @if (bccomp($this->changeDue, '0', 2) > 0)
-                    <p class="mb-3 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-300">Change due: ₹{{ $this->changeDue }}</p>
-                @endif
-
-                <div class="mb-2 space-y-1 text-xs text-slate-400">
-                    <div class="flex justify-between">
-                        <span>Subtotal</span>
-                        <span class="tabular-nums">₹{{ $this->cartTotal }}</span>
-                    </div>
-                    @if (bccomp($this->cartDiscount, '0', 2) > 0)
-                        <div class="flex justify-between text-amber-400">
-                            <span>Discount</span>
-                            <span class="tabular-nums">−₹{{ $this->cartDiscount }}</span>
+                    @elseif ($success)
+                        <div class="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-300" role="status">
+                            <x-icon name="check" class="h-4 w-4 shrink-0" /><span class="flex-1">{{ $success }}</span>
+                            <button wire:click="$set('success', null)" class="opacity-60 hover:opacity-100"><x-icon name="x" class="h-4 w-4" /></button>
                         </div>
                     @endif
                 </div>
+            @endif
 
-                <div class="mb-3 flex items-center justify-between text-lg">
-                    <span class="font-bold text-slate-300">TOTAL</span>
-                    <span class="font-black text-emerald-400">₹{{ $this->cartGrandTotal }}</span>
-                </div>
-
-                <div class="mb-3 grid grid-cols-3 gap-2" role="group" aria-label="Payment mode">
-                    <button wire:click="setPaymentMode('cash')"
-                            class="rounded-lg py-2 text-xs font-black transition {{ $paymentMode === 'cash' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
-                        CASH (F8)
-                    </button>
-                    <button wire:click="setPaymentMode('upi')"
-                            class="rounded-lg py-2 text-xs font-black transition {{ $paymentMode === 'upi' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
-                        UPI (F9)
-                    </button>
-                    <button wire:click="setPaymentMode('card')"
-                            class="rounded-lg py-2 text-xs font-black transition {{ $paymentMode === 'card' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
-                        CARD
-                    </button>
-                    <button wire:click="setPaymentMode('credit')"
-                            class="rounded-lg py-2 text-xs font-black transition {{ $paymentMode === 'credit' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
-                        CREDIT
-                    </button>
-                    <button wire:click="setPaymentMode('split')"
-                            class="col-span-2 rounded-lg py-2 text-xs font-black transition {{ $paymentMode === 'split' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700' }}">
-                        SPLIT (₹{{ $this->splitTotal }})
-                    </button>
-                </div>
-
-                @if ($paymentMode === 'split')
-                    <div class="mb-3 rounded-lg border border-dashed border-slate-700 p-2.5">
-                        <p class="text-[11px] font-black uppercase tracking-widest text-slate-400">
-                            Split legs must total ₹{{ $this->cartGrandTotal }}
-                        </p>
-                        <div class="mt-2 flex gap-1.5">
-                            <select id="split-mode" class="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white">
-                                <option value="cash">Cash</option>
-                                <option value="upi">UPI</option>
-                                <option value="card">Card</option>
-                                <option value="credit">Credit</option>
-                            </select>
-                            <input id="split-amount" type="number" min="0.01" step="0.01" placeholder="₹"
-                                   class="w-24 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white" />
-                            <button onclick="const m = document.getElementById('split-mode').value; const a = document.getElementById('split-amount').value; if (a) { @this.call('addSplitLeg', m, a); document.getElementById('split-amount').value = ''; }"
-                                    class="rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-bold text-white">Add</button>
-                        </div>
-                        @foreach ($splitLegs as $i => $leg)
-                            <div class="mt-1.5 flex items-center justify-between text-xs text-slate-300">
-                                <span class="uppercase">{{ $leg['mode'] }} · ₹{{ $leg['amount'] }}</span>
-                                <button wire:click="removeSplitLeg({{ $i }})" class="text-slate-500 hover:text-red-400">✕</button>
+            <div class="min-h-0 flex-1 overflow-y-auto p-3 pb-24 sm:p-4 lg:pb-4">
+                <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                    @forelse ($this->menuItems as $item)
+                        @php
+                            $out = $item->isOutOfStock();
+                            $qty = $cart[$item->id]['quantity'] ?? 0;
+                            $type = $item->food_type?->value;
+                        @endphp
+                        <button wire:key="menu-{{ $item->id }}"
+                                @if ($out) disabled @else wire:click="addItem({{ $item->id }})" @endif
+                                @class(['group relative flex min-h-[92px] flex-col rounded-xl border p-3 text-left transition',
+                                    'cursor-not-allowed border-line bg-surface-2 opacity-60' => $out,
+                                    'border-brand-500 bg-brand-soft ring-1 ring-brand-500/40' => ! $out && $qty > 0,
+                                    'border-line bg-surface hover:-translate-y-px hover:border-brand-400 hover:shadow-card-hover active:translate-y-0 active:scale-[.98]' => ! $out && $qty === 0])>
+                            <div class="flex items-start gap-2">
+                                @if ($type)
+                                    <span class="mt-0.5 grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[3px] border-[1.5px] {{ $foodDot[$type] ?? '' }}" title="{{ str_replace('_', '-', $type) }}">
+                                        <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+                                    </span>
+                                @endif
+                                <span class="line-clamp-2 text-sm font-semibold leading-snug">{{ $item->name }}</span>
                             </div>
-                        @endforeach
+                            <div class="mt-auto flex items-end justify-between gap-1 pt-2">
+                                <span @class(['font-display text-[15px] font-semibold', $out ? 'text-ink-3 line-through' : 'text-ink'])>{{ $money($item->price) }}</span>
+                                @if ($out)
+                                    <span class="rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold uppercase text-red-600 dark:text-red-300">Sold out</span>
+                                @elseif ($item->isLowStock())
+                                    <span class="rounded bg-accent-500/10 px-1.5 py-0.5 text-[10px] font-bold text-accent-600 dark:text-accent-400">{{ $item->stock_quantity }} left</span>
+                                @endif
+                            </div>
+                            @if ($qty > 0)
+                                <span class="absolute -right-1.5 -top-1.5 grid h-6 min-w-6 place-items-center rounded-full bg-brand-600 px-1.5 text-xs font-bold text-white shadow">{{ $qty }}</span>
+                            @endif
+                        </button>
+                    @empty
+                        <div class="col-span-full rounded-xl border border-dashed border-line-strong p-12 text-center">
+                            <x-icon name="search" class="mx-auto h-8 w-8 text-ink-3" />
+                            <p class="mt-2 text-sm text-ink-3">No items match. Try another search or category.</p>
+                        </div>
+                    @endforelse
+                </div>
+            </div>
+        </section>
+
+        {{-- =========================================== BILL --}}
+        <aside id="pos-cart"
+               x-data="{ open: false }" x-on:open-cart.window="open = true"
+               :class="open ? 'translate-y-0' : 'translate-y-full lg:translate-y-0'"
+               class="fixed inset-x-0 bottom-0 top-14 z-40 flex translate-y-full flex-col border-l border-line bg-surface shadow-pop transition-transform duration-200 lg:static lg:z-auto lg:w-[400px] lg:translate-y-0 lg:shadow-none xl:w-[430px]">
+
+            {{-- order type --}}
+            <div class="flex items-center gap-2 border-b border-line px-3 py-2.5">
+                <button @click="open = false" class="grid h-8 w-8 place-items-center rounded-lg text-ink-3 hover:bg-surface-2 lg:hidden"><x-icon name="x" class="h-4 w-4" /></button>
+                <div class="grid flex-1 grid-cols-4 gap-1 rounded-lg bg-surface-2 p-1" role="group" aria-label="Order type">
+                    @foreach ($orderTypes as $value => $text)
+                        <button wire:click="setOrderType('{{ $value }}')"
+                                @class(['rounded-md py-1.5 text-xs font-semibold transition',
+                                    $orderType === $value ? 'bg-surface text-brand-ink shadow-card' : 'text-ink-3 hover:text-ink'])>{{ $text }}</button>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="min-h-0 flex-1 overflow-y-auto">
+                {{-- customer / table --}}
+                <div class="grid grid-cols-2 gap-2 px-3 pt-3">
+                    <input type="text" maxlength="80" placeholder="Customer name" wire:model.blur="customerNameInput" class="{{ $field }}" />
+                    <input type="tel" inputmode="numeric" maxlength="14" placeholder="Mobile (WhatsApp)" wire:model.blur="customerPhoneInput" class="{{ $field }}" />
+                    @if ($orderType === 'dine_in')
+                        <input type="text" maxlength="20" placeholder="Table no. *" wire:model.live.debounce.400ms="tableNumberInput" class="{{ $field }} col-span-2" />
+                    @endif
+                    @if ($orderType === 'delivery')
+                        <input type="text" maxlength="255" placeholder="Delivery address" wire:model.blur="deliveryAddressInput" class="{{ $field }} col-span-2" />
+                        <input type="text" maxlength="80" placeholder="Rider name" wire:model.blur="deliveryAgentInput" class="{{ $field }} col-span-2" />
+                    @endif
+                </div>
+
+                {{-- lines --}}
+                <div class="mt-3 flex items-center justify-between px-3">
+                    <h2 class="text-xs font-semibold uppercase tracking-wider text-ink-3">Current bill · {{ $this->cartCount }} items</h2>
+                    @if ($cart !== [])
+                        <button wire:click="clearCart" wire:confirm="Clear this bill?" class="text-xs font-semibold text-ink-3 hover:text-red-500">Clear (F2)</button>
+                    @endif
+                </div>
+                <ul class="mt-1 divide-y divide-line px-3">
+                    @forelse ($cart as $line)
+                        <li wire:key="cart-{{ $line['id'] }}" class="flex items-center gap-2 py-2.5">
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate text-sm font-semibold">{{ $line['name'] }}</p>
+                                <p class="text-xs text-ink-3">{{ $money($line['price']) }}</p>
+                            </div>
+                            <div class="flex items-center rounded-lg border border-line">
+                                <button wire:click="decrementQuantity({{ $line['id'] }})" class="grid h-8 w-8 place-items-center text-ink-2 hover:text-red-500" aria-label="Less"><x-icon name="minus" class="h-4 w-4" /></button>
+                                <span class="w-7 text-center text-sm font-bold tabular-nums">{{ $line['quantity'] }}</span>
+                                <button wire:click="incrementQuantity({{ $line['id'] }})" class="grid h-8 w-8 place-items-center text-ink-2 hover:text-brand-ink" aria-label="More"><x-icon name="plus" class="h-4 w-4" /></button>
+                            </div>
+                            <p class="w-20 text-right text-sm font-semibold tabular-nums">{{ $money(bcmul($line['price'], (string) $line['quantity'], 2)) }}</p>
+                            <button wire:click="removeItem({{ $line['id'] }})" class="text-ink-3 hover:text-red-500" title="Remove"><x-icon name="trash" class="h-4 w-4" /></button>
+                        </li>
+                    @empty
+                        <li class="py-10 text-center">
+                            <x-icon name="receipt" class="mx-auto h-10 w-10 text-line-strong" />
+                            <p class="mt-2 text-sm text-ink-3">Tap items to start a bill</p>
+                            <p class="mt-1 text-xs text-ink-3">F4 search · F6 hold · F8 cash · F9 UPI</p>
+                        </li>
+                    @endforelse
+                </ul>
+
+                {{-- discount / campaign / note --}}
+                <div class="px-3 pb-3">
+                    <button @click="more = !more" class="flex w-full items-center justify-between rounded-lg py-2 text-xs font-semibold text-brand-ink">
+                        <span>Discount, coupon &amp; note</span>
+                        <span x-text="more ? '−' : '+'"></span>
+                    </button>
+                    <div x-show="more" x-cloak class="grid grid-cols-2 gap-2">
+                        <label class="block"><span class="{{ $label }}">Discount ₹</span>
+                            <input type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" wire:model.live.debounce.400ms="discountInput" class="{{ $field }}" /></label>
+                        <label class="block"><span class="{{ $label }}">Coupon code</span>
+                            <input type="text" maxlength="40" placeholder="DIWALI10" wire:model.live.debounce.500ms="campaignInput" class="{{ $field }} uppercase" /></label>
+                        @if ($this->campaignStatus === 'invalid')
+                            <p class="col-span-2 -mt-1 text-xs font-medium text-red-500">Coupon not valid for this bill.</p>
+                        @endif
+                        <label class="col-span-2 block"><span class="{{ $label }}">Kitchen / bill note</span>
+                            <input type="text" maxlength="200" placeholder="e.g. less spicy, no onion" wire:model.blur="notesInput" class="{{ $field }}" /></label>
                     </div>
+                </div>
+            </div>
+
+            {{-- totals + payment --}}
+            <div class="border-t border-line bg-surface-2/60 px-3 pb-3 pt-2.5">
+                <dl class="space-y-0.5 text-sm">
+                    <div class="flex justify-between text-ink-2"><dt>Subtotal</dt><dd class="tabular-nums">{{ $money($this->cartTotal) }}</dd></div>
+                    @if (bccomp($this->cartDiscount, '0', 2) > 0)
+                        <div class="flex justify-between text-accent-600 dark:text-accent-400"><dt>Discount</dt><dd class="tabular-nums">−{{ $money($this->cartDiscount) }}</dd></div>
+                    @endif
+                    @if (bccomp($this->campaignDiscount, '0', 2) > 0)
+                        <div class="flex justify-between text-accent-600 dark:text-accent-400"><dt>Coupon {{ strtoupper($campaignInput) }}</dt><dd class="tabular-nums">−{{ $money($this->campaignDiscount) }}</dd></div>
+                    @endif
+                    @if ($cart !== [] && bccomp($this->roundOff, '0', 2) !== 0)
+                        <div class="flex justify-between text-xs text-ink-3"><dt>Round off</dt><dd class="tabular-nums">{{ $this->roundOff }}</dd></div>
+                    @endif
+                    @if ($this->store?->is_gst_enabled)
+                        <div class="text-[11px] text-ink-3">Prices include GST</div>
+                    @endif
+                </dl>
+
+                <div class="mt-2 grid grid-cols-5 gap-1" role="group" aria-label="Payment mode">
+                    @foreach ($payModes as $value => $text)
+                        <button wire:click="setPaymentMode('{{ $value }}')"
+                                @class(['rounded-lg border py-2 text-xs font-semibold transition',
+                                    $paymentMode === $value ? 'border-brand-600 bg-brand-600 text-white' : 'border-line bg-surface text-ink-2 hover:border-brand-400'])>{{ $text }}</button>
+                    @endforeach
+                </div>
+
+                @if ($cart !== [])
+                    @if ($paymentMode === 'cash')
+                        <div class="mt-2 flex items-center gap-1.5">
+                            <input type="number" min="0" step="1" inputmode="decimal" placeholder="Cash received"
+                                   wire:model.live.debounce.300ms="tenderedInput" class="{{ $field }} h-9 flex-1" />
+                            @foreach (array_unique([(float) $this->payable, ceil((float) $this->payable / 100) * 100, ceil((float) $this->payable / 500) * 500]) as $note)
+                                @if ($note > 0)
+                                    <button wire:click="setTendered('{{ $note }}')" class="h-9 shrink-0 rounded-lg border border-line bg-surface px-2 text-xs font-semibold text-ink-2 hover:border-brand-400">₹{{ (int) $note }}</button>
+                                @endif
+                            @endforeach
+                        </div>
+                        @if (bccomp($this->changeDue, '0', 2) > 0)
+                            <p class="mt-1.5 flex justify-between rounded-lg bg-emerald-500/10 px-3 py-1.5 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                                <span>Return change</span><span class="tabular-nums">{{ $money($this->changeDue) }}</span>
+                            </p>
+                        @endif
+                    @elseif ($paymentMode === 'upi')
+                        <div class="mt-2 flex items-center gap-3 rounded-lg border border-line bg-surface p-2">
+                            @if ($this->upiLink)
+                                <div wire:key="qr-{{ md5($this->upiLink) }}" x-data x-init="$el.innerHTML = window.bbQrSvg(@js($this->upiLink))"
+                                     class="h-28 w-28 shrink-0 rounded bg-white p-1 [&_svg]:h-full [&_svg]:w-full"></div>
+                                <div class="min-w-0 flex-1 space-y-1.5">
+                                    <p class="text-xs text-ink-3">Scan with any UPI app</p>
+                                    <p class="font-display text-lg font-semibold">{{ $money($this->payable) }}</p>
+                                    <p class="truncate text-[11px] text-ink-3">{{ $this->store->upi_vpa }}</p>
+                                    <input type="text" maxlength="60" placeholder="UTR / ref (optional)" wire:model.blur="upiRefInput" class="{{ $field }} h-8 text-xs" />
+                                </div>
+                            @else
+                                <div class="flex-1 space-y-1.5">
+                                    <p class="text-xs text-ink-3">Add your UPI ID in Admin → Store settings to show a payment QR here.</p>
+                                    <input type="text" maxlength="60" placeholder="UTR / ref (optional)" wire:model.blur="upiRefInput" class="{{ $field }} h-8 text-xs" />
+                                </div>
+                            @endif
+                        </div>
+                    @elseif ($paymentMode === 'split')
+                        <div class="mt-2 rounded-lg border border-dashed border-line-strong bg-surface p-2" x-data="{ m: 'cash', a: '' }">
+                            <div class="flex gap-1.5">
+                                <select x-model="m" class="{{ $field }} h-8 w-24 px-2 py-0 text-xs">
+                                    <option value="cash">Cash</option><option value="upi">UPI</option><option value="card">Card</option><option value="credit">Credit</option>
+                                </select>
+                                <input x-model="a" type="number" min="1" step="0.01" placeholder="₹ amount" class="{{ $field }} h-8 flex-1 text-xs" />
+                                <button @click="if (a) { $wire.addSplitLeg(m, a); a = '' } else { $wire.addSplitRemainder(m) }"
+                                        class="h-8 rounded-lg bg-brand-600 px-3 text-xs font-semibold text-white">Add</button>
+                            </div>
+                            @foreach ($splitLegs as $i => $leg)
+                                <div class="mt-1.5 flex items-center justify-between text-xs">
+                                    <span class="font-semibold uppercase">{{ $leg['mode'] }}</span>
+                                    <span class="ml-auto mr-2 tabular-nums">{{ $money($leg['amount']) }}</span>
+                                    <button wire:click="removeSplitLeg({{ $i }})" class="text-ink-3 hover:text-red-500"><x-icon name="x" class="h-3.5 w-3.5" /></button>
+                                </div>
+                            @endforeach
+                            @php $remaining = bcsub($this->payable, $this->splitTotal, 2); @endphp
+                            <p @class(['mt-1.5 text-[11px] font-semibold', bccomp($remaining, '0', 2) === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-3'])>
+                                {{ bccomp($remaining, '0', 2) === 0 ? 'Fully covered ✓' : 'Remaining '.$money($remaining).' — empty amount adds the rest' }}
+                            </p>
+                        </div>
+                    @elseif ($paymentMode === 'credit')
+                        <p class="mt-2 rounded-lg bg-accent-500/10 px-3 py-1.5 text-xs font-medium text-accent-700 dark:text-accent-400">Pay-later bill — customer name or mobile required.</p>
+                    @endif
                 @endif
 
-                <button
-                    wire:click="checkout('{{ $paymentMode }}')"
-                    wire:loading.attr="disabled"
-                    @class(['w-full rounded-xl bg-emerald-500 py-3 text-sm font-black uppercase tracking-widest text-slate-950 transition hover:bg-emerald-400 disabled:opacity-50', 'pointer-events-none opacity-50' => $cart === []])
-                >
-                    🖨 Print &amp; Settle
+                <button wire:click="checkout('{{ $paymentMode }}')" wire:loading.attr="disabled" wire:target="checkout"
+                        @disabled($cart === [])
+                        class="mt-2.5 flex h-14 w-full items-center justify-between rounded-xl bg-brand-600 px-5 text-white shadow-sm transition hover:bg-brand-700 active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-40">
+                    <span class="flex items-center gap-2 text-sm font-semibold">
+                        <x-icon name="printer" class="h-5 w-5" />
+                        <span wire:loading.remove wire:target="checkout">Settle &amp; print</span>
+                        <span wire:loading wire:target="checkout">Saving…</span>
+                    </span>
+                    <span class="font-display text-xl font-semibold tabular-nums">{{ $money($this->payable) }}</span>
                 </button>
+                <div class="mt-1.5 flex justify-between text-[11px] text-ink-3">
+                    <span>F8 cash · F9 UPI</span>
+                    <button wire:click="holdBill" @disabled($cart === []) class="font-semibold hover:text-brand-ink disabled:opacity-40">Hold bill (F6)</button>
+                </div>
             </div>
         </aside>
     </div>
 
-    {{-- MOBILE QUICK-BILL BAR — anchors to the cart panel stacked below on
-         phones/tablets so cashiers can always see the running total. --}}
-    <div class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-800 bg-slate-900/95 px-4 py-3 backdrop-blur-sm print:hidden lg:hidden">
-        <div class="flex items-center justify-between gap-3">
-            <div class="flex items-center gap-2">
-                <span class="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-bold text-emerald-400">{{ $this->cartCount }} items</span>
-                <span class="text-sm font-black text-emerald-400">₹{{ $this->cartGrandTotal }}</span>
-            </div>
-            <a href="#pos-cart" class="rounded-lg bg-emerald-500 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-950">View Bill ↓</a>
-        </div>
+    {{-- mobile bill bar --}}
+    <div class="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 px-3 py-2.5 backdrop-blur print:hidden lg:hidden">
+        <button x-on:click="$dispatch('open-cart')" class="flex h-12 w-full items-center justify-between rounded-xl bg-brand-600 px-4 text-white">
+            <span class="text-sm font-semibold">{{ $this->cartCount }} items · View bill</span>
+            <span class="font-display text-lg font-semibold">{{ $money($this->payable) }}</span>
+        </button>
     </div>
 
-    {{-- ---------------------------------------------------- THERMAL RECEIPT --}}
-    {{-- Shown on screen as a bill preview after checkout; in print became the
-         ONLY visible content (the @media print rules strip the whole app). --}}
-    @if ($lastReceipt)
-        <div id="thermal-receipt"
-             class="mx-auto mb-5 w-full max-w-sm rounded-xl border border-slate-800 bg-white px-4 py-4 text-black"
-             aria-label="Bill preview">
-
-            <div class="mb-2 flex items-center justify-between border-b border-dashed border-slate-300 pb-2 print:hidden">
-                <span class="text-xs font-black uppercase tracking-widest text-slate-500">Bill {{ $lastReceipt['order_number'] }}</span>
-                <button type="button" onclick="window.print()"
-                        class="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-slate-950 hover:bg-emerald-400">
-                    🖨 Print Bill
-                </button>
-            </div>
-
-            <div class="mx-auto w-[72mm] max-w-full font-mono text-[13px] leading-[1.4]" id="thermal-paper">
-                <div class="text-center">
-                    @if (filled($lastReceipt['store']['print_header']))
-                        <p class="text-[12px] font-bold uppercase">{{ $lastReceipt['store']['print_header'] }}</p>
-                    @endif
-                    <p class="text-[14px] font-bold uppercase">{{ $lastReceipt['store']['name'] }}</p>
-                    @if (filled($lastReceipt['store']['address']))
-                        <p>{{ $lastReceipt['store']['address'] }}</p>
-                    @endif
-                    @if (filled($lastReceipt['store']['phone']))
-                        <p>Ph: {{ $lastReceipt['store']['phone'] }}</p>
-                    @endif
+    {{-- =========================================== DRAWER: held / recent --}}
+    @if ($drawer)
+        <div class="fixed inset-0 z-50 flex justify-end print:hidden" x-on:keydown.escape.window="$wire.openDrawer(null)">
+            <div class="absolute inset-0 bg-black/40" wire:click="openDrawer(null)"></div>
+            <div class="relative flex h-full w-full max-w-md flex-col bg-surface shadow-pop">
+                <div class="flex items-center justify-between border-b border-line px-4 py-3">
+                    <h2 class="font-display text-base font-semibold">{{ $drawer === 'held' ? 'Bills on hold' : "Today's bills" }}</h2>
+                    <button wire:click="openDrawer(null)" class="grid h-8 w-8 place-items-center rounded-lg hover:bg-surface-2"><x-icon name="x" class="h-4 w-4" /></button>
                 </div>
-
-                <p class="my-1">--------------------------------</p>
-                <div class="flex justify-between">
-                    <span>Bill: {{ $lastReceipt['order_number'] }}</span>
-                    <span>{{ $lastReceipt['placed_at'] }}</span>
-                </div>
-                @if (filled($lastReceipt['cashier']))
-                    <div class="flex justify-between">
-                        <span>Cashier: {{ $lastReceipt['cashier'] }}</span>
-                    </div>
-                @endif
-                <p class="my-1">--------------------------------</p>
-
-                @foreach ($lastReceipt['items'] as $item)
-                    <div class="flex justify-between">
-                        <span class="truncate pr-1">{{ $item['quantity'] }} x {{ $item['food_item_name'] }}</span>
-                        <span>{{ $item['subtotal'] }}</span>
-                    </div>
-                @endforeach
-
-                <p class="my-1">--------------------------------</p>
-                @if (bccomp((string) ($lastReceipt['discount_amount'] ?? '0.00'), '0', 2) > 0)
-                    <div class="flex justify-between">
-                        <span>Subtotal</span>
-                        <span>{{ $lastReceipt['subtotal'] }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>Discount</span>
-                        <span>-{{ $lastReceipt['discount_amount'] }}</span>
-                    </div>
-                @endif
-                <div class="flex justify-between font-bold">
-                    <span>TOTAL</span>
-                    <span>Rs. {{ $lastReceipt['total_amount'] }}</span>
-                </div>
-                <div class="flex justify-between uppercase">
-                    <span>Paid via</span>
-                    <span>{{ $lastReceipt['payment_mode'] }}</span>
-                </div>
-                @if (filled($lastReceipt['notes'] ?? null))
-                    <p class="mt-1">Note: {{ $lastReceipt['notes'] }}</p>
-                @endif
-                <p class="my-1">--------------------------------</p>
-
-                <div class="text-center">
-                    @if (filled($lastReceipt['store']['print_footer']))
-                        <p>{{ $lastReceipt['store']['print_footer'] }}</p>
+                <div class="min-h-0 flex-1 overflow-y-auto p-3">
+                    @if ($drawer === 'held')
+                        @forelse ($held as $bill)
+                            <div wire:key="held-{{ $bill['id'] }}" class="mb-2 flex items-center gap-3 rounded-xl border border-line p-3">
+                                <div class="min-w-0 flex-1">
+                                    <p class="truncate text-sm font-semibold">{{ $bill['label'] }}</p>
+                                    <p class="text-xs text-ink-3">{{ $bill['count'] }} items · held {{ $bill['held_at'] }}</p>
+                                </div>
+                                <span class="text-sm font-semibold tabular-nums">{{ $money($bill['total']) }}</span>
+                                <button wire:click="resumeBill('{{ $bill['id'] }}')" class="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white">Resume</button>
+                                <button wire:click="discardHeldBill('{{ $bill['id'] }}')" wire:confirm="Discard this held bill?" class="text-ink-3 hover:text-red-500"><x-icon name="trash" class="h-4 w-4" /></button>
+                            </div>
+                        @empty
+                            <p class="py-12 text-center text-sm text-ink-3">No bills on hold. Press F6 to park the current bill.</p>
+                        @endforelse
+                    @else
+                        @forelse ($this->recentBills as $bill)
+                            <div wire:key="recent-{{ $bill->id }}" class="mb-2 flex items-center gap-3 rounded-xl border border-line p-3">
+                                <div class="min-w-0 flex-1">
+                                    <p class="truncate font-mono text-sm font-semibold">{{ $bill->order_number }}</p>
+                                    <p class="truncate text-xs text-ink-3">
+                                        {{ $bill->created_at?->format('h:i A') }} · {{ strtoupper($bill->payment_mode->value) }}
+                                        @if ($bill->customer_name) · {{ $bill->customer_name }} @endif
+                                        @if ($bill->status->value === 'cancelled') · <span class="text-red-500">Cancelled</span> @endif
+                                    </p>
+                                </div>
+                                <span class="text-sm font-semibold tabular-nums">{{ $money($bill->total_amount) }}</span>
+                                <button wire:click="reprint({{ $bill->id }})" class="rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold hover:border-brand-400" title="Reprint bill"><x-icon name="printer" class="h-4 w-4" /></button>
+                            </div>
+                        @empty
+                            <p class="py-12 text-center text-sm text-ink-3">No bills yet today.</p>
+                        @endforelse
                     @endif
-                    <p class="mt-1">Powered by BizBite</p>
                 </div>
             </div>
         </div>
     @endif
 
-    {{-- ---------------------------------------------------- EVENT BRIDGE --}}
-    {{-- Keyboard shortcuts -> Livewire events; `trigger-print` -> dialog. --}}
+    {{-- =========================================== SETTLED / REPRINT PANEL --}}
+    @if ($lastReceipt && $showReceipt)
+        <div class="fixed inset-0 z-50 grid place-items-center p-4 print:hidden" x-on:keydown.escape.window="$wire.closeReceipt()">
+            <div class="absolute inset-0 bg-black/50" wire:click="closeReceipt"></div>
+            <div class="relative flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-2xl bg-surface shadow-pop">
+                <div class="flex items-center gap-3 border-b border-line px-5 py-4">
+                    <span class="grid h-10 w-10 place-items-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"><x-icon name="check" class="h-5 w-5" /></span>
+                    <div class="min-w-0 flex-1">
+                        <p class="font-display text-lg font-semibold">{{ $money($lastReceipt['total_amount']) }} {{ ! empty($lastReceipt['reprint']) ? '' : 'received' }}</p>
+                        <p class="truncate text-xs text-ink-3">Bill {{ $lastReceipt['order_number'] }} · {{ strtoupper($lastReceipt['payment_mode']) }}
+                            @if (bccomp((string) ($lastReceipt['change_amount'] ?? '0'), '0', 2) > 0) · Change {{ $money($lastReceipt['change_amount']) }} @endif
+                        </p>
+                    </div>
+                    <button wire:click="closeReceipt" class="grid h-8 w-8 place-items-center rounded-lg hover:bg-surface-2"><x-icon name="x" class="h-4 w-4" /></button>
+                </div>
+                <div class="min-h-0 flex-1 overflow-y-auto bg-surface-3 p-4">
+                    <div class="rounded-md p-3 shadow-card" style="background:#fff">
+                        @include('partials.receipt', ['r' => $lastReceipt, 'reprint' => ! empty($lastReceipt['reprint'])])
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-2 border-t border-line p-3">
+                    <button onclick="bbPrint('receipt')" class="flex flex-col items-center gap-1 rounded-xl border border-line py-2.5 text-xs font-semibold hover:border-brand-400"><x-icon name="printer" class="h-5 w-5" />Print bill</button>
+                    <button onclick="bbPrint('kot')" class="flex flex-col items-center gap-1 rounded-xl border border-line py-2.5 text-xs font-semibold hover:border-brand-400"><x-icon name="chef" class="h-5 w-5" />Print KOT</button>
+                    <a href="{{ $this->whatsappLink }}" target="_blank" rel="noopener" class="flex flex-col items-center gap-1 rounded-xl border border-line py-2.5 text-xs font-semibold text-[#128C7E] hover:border-[#25D366] dark:text-[#25D366]"><x-icon name="whatsapp" class="h-5 w-5" />WhatsApp</a>
+                </div>
+                <div class="px-3 pb-3">
+                    <button wire:click="closeReceipt" class="h-11 w-full rounded-xl bg-brand-600 text-sm font-semibold text-white hover:bg-brand-700">New bill</button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- print-only copies (hidden on screen) --}}
+    @if ($lastReceipt)
+        <div id="print-receipt" class="hidden">@include('partials.receipt', ['r' => $lastReceipt, 'reprint' => ! empty($lastReceipt['reprint'])])</div>
+        <div id="print-kot" class="hidden">@include('partials.kot', ['r' => $lastReceipt])</div>
+    @endif
+
+    <script src="{{ asset('js/vendor/qrcode.js') }}"></script>
     @script
         <script>
-            document.addEventListener('keydown', (event) => {
-                switch (event.key) {
-                    case 'F2':
-                        event.preventDefault();
-                        $wire.dispatch('shortcut-clear-cart');
-                        break;
-                    case 'F4':
+            window.bbQrSvg = (text) => {
+                if (typeof qrcode === 'undefined') return '';
+                const qr = qrcode(0, 'M');
+                qr.addData(text);
+                qr.make();
+                return qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+            };
+
+            window.bbPrint = (copy) => {
+                document.body.dataset.print = copy === 'kot' ? 'kot' : 'receipt';
+                window.print();
+            };
+            window.addEventListener('afterprint', () => { delete document.body.dataset.print; });
+
+            if (! window.bbPosKeys) {
+                window.bbPosKeys = true;
+                document.addEventListener('keydown', (event) => {
+                    const map = { F2: 'shortcut-clear-cart', F6: 'shortcut-hold', F8: 'shortcut-cash', F9: 'shortcut-upi' };
+                    if (event.key === 'F4') {
                         event.preventDefault();
                         document.getElementById('pos-search')?.focus();
-                        break;
-                    case 'F8':
+                    } else if (map[event.key]) {
                         event.preventDefault();
-                        $wire.dispatch('shortcut-cash');
-                        break;
-                    case 'F9':
-                        event.preventDefault();
-                        $wire.dispatch('shortcut-upi');
-                        break;
-                }
-            });
+                        Livewire.dispatch(map[event.key]);
+                    }
+                });
+            }
 
-            // The component commits the order first, updates the DOM with the
-            // receipt data, then dispatches this browser event; a short delay
-            // guarantees morphing is complete before the dialog opens.
-            $wire.on('trigger-print', () => {
-                setTimeout(() => window.print(), 120);
+            // Settle commits first, the DOM morphs in the receipt, then we print.
+            $wire.on('trigger-print', (event) => {
+                setTimeout(() => bbPrint(event?.copy ?? 'receipt'), 150);
             });
         </script>
     @endscript

@@ -49,7 +49,7 @@ class DatabaseSeeder extends Seeder
             'city' => 'New Delhi',
             'state' => 'Delhi',
             'pincode' => '110009',
-            'gstin' => '07ABCDE1234F1Z5',
+            'gstin' => '07ABCDE1234F1Z2',
             'fssai_license' => '10012043001234',
             'upi_vpa' => 'apnazaika@upi',
             'currency' => 'INR',

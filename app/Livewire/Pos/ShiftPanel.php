@@ -20,7 +20,7 @@ use Livewire\Component;
  * opening + cash sales in-window; variance is shown to the owner.
  */
 #[Layout('layouts.app')]
-#[Title('BizBite POS — Shift')]
+#[Title('Shift & cash')]
 final class ShiftPanel extends Component
 {
     public string $openingCash = '';

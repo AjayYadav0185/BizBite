@@ -1,0 +1,10 @@
+# Never serve database files over HTTP (Adminer reads them from disk, not via the web).
+<FilesMatch "\.(sqlite|sqlite3|db|sql|gz)$">
+    Require all denied
+</FilesMatch>
+
+# Adminer is a full database console with a password-less plugin enabled —
+# local development only. Allow localhost; deny everyone else.
+<IfModule mod_authz_core.c>
+    Require local
+</IfModule>

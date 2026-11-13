@@ -1,66 +1,106 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# BizBite POS
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Restaurant / QSR billing for Indian outlets — built for Delhi NCR (Delhi, Gurugram, Noida, Ghaziabad, Faridabad).
 
-## About Laravel
+**Counter (POS):** fast menu grid · veg/non-veg marks · hold & resume bills · cash / UPI / card / credit / split ·
+dynamic UPI QR with the exact amount · GST tax invoice (CGST/SGST per slab, SAC 996331) · KOT printing ·
+WhatsApp e-bill · reprint today's bills · kitchen order board · shift cash drawer · light/dark theme.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+**Owner console:** today's sales · reports + CSV · menu & stock alerts · tables · coupons · staff ·
+store & billing settings (GSTIN with check-digit validation, FSSAI, UPI ID) · audit log.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Stack: Laravel 11 · Livewire 3 · Tailwind · SQLite / MySQL / Postgres · Flutter app in `mobile/`.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## 1. Run locally
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+```bash
+composer install
+npm ci && npm run build          # compiled CSS (without it the app falls back to the Tailwind CDN)
+cp .env.example .env && php artisan key:generate
+php artisan migrate
+php artisan bizbite:install      # creates your store + owner login (asks for details)
+php artisan serve                # http://127.0.0.1:8000
+```
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+Want sample data to try things out? `php artisan bizbite:install --demo` loads the demo restaurant
+(logins `admin@gmail.com` / `cashier@gmail.com`, password `p`). **Never use demo data on a live outlet.**
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Tests: `php artisan test`.
 
-## Laravel Sponsors
+## 2. Go-live checklist for a new outlet
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+1. **Owner console → Store & billing**
+   - Trade name, address, PIN, phone
+   - Tick *GST registered* and enter the **GSTIN** (bills print as *TAX INVOICE*). Not registered? Leave it
+     off — bills print as *Bill of Supply* without tax lines.
+   - **FSSAI** 14-digit licence/registration number (mandatory on food bills)
+   - **UPI ID** (e.g. `shop@okaxis`) — the POS then shows a QR with the exact bill amount
+2. **Menu & stock** — categories, items, price (GST-inclusive), GST slab (5% for most restaurants), veg/non-veg.
+3. **Staff** — one cashier login per person (never share the owner login at the counter).
+4. **Printer** — any 80mm thermal printer set as the default printer on the counter PC.
+   In Chrome print settings: paper 80mm, margins *None*, untick *Headers and footers*.
+   For silent one-click printing launch Chrome with `--kiosk-printing`.
+5. Do a test bill in each payment mode, cancel it from **Orders**, and check the receipt.
 
-### Premium Partners
+### Counter shortcuts
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+| Key | Action |
+|-----|--------|
+| F4 | Search (Enter adds the first match) |
+| F6 | Hold the current bill |
+| F8 / F9 | Settle as Cash / UPI |
+| F2 | Clear bill |
+| Esc | Close panels |
 
-## Contributing
+## 3. Production deployment (Docker)
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+docker build -t bizbite .
+docker run -p 10000:10000 \
+  -e APP_KEY=base64:... -e APP_URL=https://pos.example.in \
+  -e DB_CONNECTION=mysql -e DB_HOST=... -e DB_DATABASE=... -e DB_USERNAME=... -e DB_PASSWORD=... \
+  -e OWNER_EMAIL=owner@example.in -e OWNER_PASSWORD='...' -e STORE_NAME='Apna Dhaba' \
+  bizbite
+```
 
-## Code of Conduct
+The entrypoint runs `migrate --force` (never wipes data), creates the owner on first boot from
+`OWNER_*` env, starts the scheduler (nightly backup) and a queue worker.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+| Env | Purpose |
+|-----|---------|
+| `APP_KEY` | **Required and permanent.** Generate once with `php artisan key:generate --show`. |
+| `APP_ENV=production`, `APP_DEBUG=false` | Always in production. |
+| `APP_TIMEZONE=Asia/Kolkata` | Default. Bill times, day-wise bill numbers and reports use IST. |
+| `OWNER_EMAIL`, `OWNER_PASSWORD`, `STORE_NAME`, `OWNER_NAME` | First-boot owner account (min 8 chars, letters + numbers). |
+| `SEED_DEMO_DATA=true` | Demo instance only. |
+| `DB_RESET_ON_BOOT=true` | Demo instance only — **wipes all bills on every restart.** |
 
-## Security Vulnerabilities
+Without Docker: point the web server's document root at `public/` (never the project folder),
+run `php artisan schedule:work` (or a cron calling `schedule:run` every minute) and
+`php artisan config:cache && php artisan view:cache` after each deploy.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## 4. Backups
 
-## License
+`php artisan bizbite:backup` writes a gzip snapshot to `storage/app/backups` (SQLite: consistent
+`VACUUM INTO` copy, safe during service; MySQL: `mysqldump`; Postgres: `pg_dump`). It runs daily at
+03:30 IST and keeps 14 days (`--keep=`).
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+**Copy that folder off the machine** (Google Drive / S3 / USB) — a backup on the same disk dies with the disk.
+
+Restore (SQLite): stop the app, `gunzip -c bizbite-YYYYMMDD-HHMMSS.sqlite.gz > database/database.sqlite`, start.
+Restore (MySQL): `gunzip -c file.sql.gz | mysql -u USER -p DBNAME`.
+
+## 5. Security notes
+
+- `public/adminer` (database console with a password-less login) is **for local development only**.
+  It is excluded from Docker images and limited to localhost by `.htaccess`; do not deploy it.
+- Keep `.env` out of the web root and out of git.
+- Every money-sensitive action (discounts, refunds, cancellations, credit bills, price and settings
+  changes) is written to the owner's audit log.
+
+## 6. Theme
+
+Colour tokens live in `resources/views/partials/theme.blade.php` (CSS variables, light + dark);
+`tailwind.config.js` maps Tailwind names onto them. Change the `--brand-*` values there to rebrand.

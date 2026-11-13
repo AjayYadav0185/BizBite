@@ -1,0 +1,14 @@
+# Defence for setups where the web server's document root is the project
+# folder instead of public/ (e.g. MAMP htdocs). Production must point the
+# document root at public/ — this file is only a safety net.
+
+# Secrets and data files: .env, .git*, SQLite DBs, logs, lockfiles.
+<FilesMatch "^\.|\.(sqlite|sqlite3|db|log|lock|sh|yml|yaml|md)$">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    # Application source and private folders are never web content.
+    RewriteRule ^(\.git|app|bootstrap|config|database|docker|mobile|resources|routes|scripts|storage|tests|vendor|node_modules)(/|$) - [F,L]
+</IfModule>
