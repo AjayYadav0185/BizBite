@@ -9,7 +9,10 @@
 <body class="min-h-screen bg-bg font-sans text-ink antialiased">
 @php
     $apk = \App\Http\Controllers\AppDownloadController::latestApk();
-    $downloadUrl = route('download-app.download');
+    // Direct APK link served from GitHub (the APK is committed in storage/app/public/apks).
+    $downloadUrl = $apk
+        ? 'https://github.com/AjayYadav0185/BizBite/raw/main/storage/app/public/apks/'.rawurlencode($apk['filename'])
+        : route('download-app.download');
     $version = $apk ? ($apk['version'] !== '' ? $apk['version'] : '1.0.0') : null;
     $features = [
         ['receipt', 'GST tax invoice', 'GSTIN, FSSAI, CGST/SGST per slab, SAC 996331 and amount in words — or a Bill of Supply if you are not registered.'],
