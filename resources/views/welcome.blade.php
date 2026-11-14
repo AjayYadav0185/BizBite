@@ -9,11 +9,10 @@
 <body class="min-h-screen bg-bg font-sans text-ink antialiased">
 @php
     $apk = \App\Http\Controllers\AppDownloadController::latestApk();
-    // Direct APK link served from GitHub (the APK is committed in storage/app/public/apks).
-    $downloadUrl = $apk
-        ? 'https://github.com/AjayYadav0185/BizBite/raw/main/storage/app/public/apks/'.rawurlencode($apk['filename'])
-        : route('download-app.download');
-    $version = $apk ? ($apk['version'] !== '' ? $apk['version'] : '1.0.0') : null;
+    // Direct APK download from GitHub (the APK is committed in storage/app/public/apks).
+    $apkFile = $apk['filename'] ?? 'bizbite-1.1.1+3.apk';
+    $downloadUrl = 'https://github.com/AjayYadav0185/BizBite/raw/main/storage/app/public/apks/'.rawurlencode($apkFile);
+    $version = ($apk['version'] ?? '') !== '' ? $apk['version'] : '1.1.1';
     $features = [
         ['receipt', 'GST tax invoice', 'GSTIN, FSSAI, CGST/SGST per slab, SAC 996331 and amount in words — or a Bill of Supply if you are not registered.'],
         ['qr', 'UPI QR with the exact amount', 'Customers scan with PhonePe, Google Pay, Paytm or BHIM. No typing, no wrong amounts.'],
@@ -59,11 +58,9 @@
                     GST invoices, UPI QR, KOT and WhatsApp bills — on your counter PC and on any Android phone or tablet.
                 </p>
                 <div class="mt-8 flex flex-wrap gap-3">
-                    @if ($apk)
-                        <a href="{{ $downloadUrl }}" class="inline-flex h-12 items-center gap-2 rounded-xl bg-brand-600 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">
+                        <a href="{{ $downloadUrl }}" download="{{ $apkFile }}" class="inline-flex h-12 items-center gap-2 rounded-xl bg-brand-600 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700">
                             <x-icon name="download" class="h-5 w-5" /> Download Android app
                         </a>
-                    @endif
                     <a href="{{ route('login') }}" class="inline-flex h-12 items-center gap-2 rounded-xl border border-line-strong bg-surface px-6 text-sm font-semibold text-ink transition hover:border-brand-400">
                         Open web POS <x-icon name="arrow-right" class="h-4 w-4" />
                     </a>
@@ -122,16 +119,14 @@
                     <h2 class="font-display text-3xl font-semibold">Get the BizBite Android app</h2>
                     <p class="mt-2 max-w-xl text-brand-100/80">Bill from any Android phone or tablet, print to a Bluetooth thermal printer, and keep billing even when the internet drops — bills sync automatically.</p>
 
-                    @if ($apk)
-                        <a href="{{ $downloadUrl }}" class="mt-6 inline-flex h-14 items-center gap-3 rounded-2xl bg-white px-7 text-base font-semibold text-brand-900 shadow-sm transition hover:bg-brand-50">
+                        <a href="{{ $downloadUrl }}" download="{{ $apkFile }}" class="mt-6 inline-flex h-14 items-center gap-3 rounded-2xl bg-white px-7 text-base font-semibold text-brand-900 shadow-sm transition hover:bg-brand-50">
                             <x-icon name="download" class="h-5 w-5" /> Download APK · v{{ $version }}
                         </a>
+                    @if ($apk)
                         <p class="mt-3 text-xs text-brand-100/70">
                             {{ number_format($apk['size'] / 1048576, 1) }} MB · updated {{ \Illuminate\Support\Carbon::createFromTimestamp($apk['modified'])->setTimezone('Asia/Kolkata')->format('j M Y') }}
                             · <a href="{{ route('download-app') }}" class="underline hover:text-white">more details</a>
                         </p>
-                    @else
-                        <p class="mt-6 rounded-xl bg-white/10 px-4 py-3 text-sm">The Android app will be available here shortly.</p>
                     @endif
 
                     <ol class="mt-8 grid gap-3 text-sm text-brand-50/90 sm:grid-cols-3">
