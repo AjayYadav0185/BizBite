@@ -1,2 +1,5 @@
 *
 !.gitignore
+# Release APKs ship with the repo so /download-app/download works on deploy
+!apks/
+!apks/*.apk

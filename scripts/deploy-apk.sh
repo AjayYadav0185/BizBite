@@ -27,7 +27,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo "==> Building Flutter APK ($FLAVOR)..."
-(cd "$MOBILE" && flutter build apk --"$FLAVOR" "${EXTRA_ARGS[@]}")
+(cd "$MOBILE" && flutter build apk --"$FLAVOR" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"})
 
 SRC="$MOBILE/build/app/outputs/flutter-apk/app-$FLAVOR.apk"
 [[ -f "$SRC" ]] || { echo "ERROR: build output not found at $SRC"; exit 1; }
@@ -46,5 +46,5 @@ echo "==> Publishing $SRC -> $DEST"
 cp -f "$SRC" "$DEST"
 
 # Convenience: list what's live now.
-LATEST="$("$ROOT/artisan tinker --execute='echo (\App\Http\Controllers\AppDownloadController::latestApk())["filename"] ?? "none";' 2>/dev/null || basename "$DEST")"
+LATEST="$(cd "$ROOT" && php artisan tinker --execute='echo (\App\Http\Controllers\AppDownloadController::latestApk())["filename"] ?? "none";' 2>/dev/null || basename "$DEST")"
 echo "==> Done. /download-app now serves: $LATEST"
