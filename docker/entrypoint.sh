@@ -16,7 +16,18 @@ chmod -R ug+rwX "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
 # ---- Database (SQLite default; set DB_CONNECTION=pgsql for Render Postgres) --
 DB_CONN="${DB_CONNECTION:-sqlite}"
 if [ "$DB_CONN" = "sqlite" ]; then
-    DB_DATABASE="${DB_DATABASE:-$APP_DIR/database/database.sqlite}"
+    # Only accept an absolute file path. Local-dev aliases such as
+    # "adminer_sqlite" (maps to public/adminer, which is excluded from the
+    # image) or relative names would point at a file that doesn't exist.
+    case "$DB_DATABASE" in
+        /*) ;;
+        *)
+            if [ -n "$DB_DATABASE" ]; then
+                echo "WARNING: DB_DATABASE='$DB_DATABASE' is not an absolute path; using $APP_DIR/database/database.sqlite"
+            fi
+            DB_DATABASE="$APP_DIR/database/database.sqlite"
+            ;;
+    esac
     export DB_CONNECTION=sqlite
     export DB_DATABASE
     mkdir -p "$(dirname "$DB_DATABASE")"
